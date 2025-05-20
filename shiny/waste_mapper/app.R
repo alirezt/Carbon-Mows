@@ -1,3 +1,34 @@
+# ============================================================
+# Montreal Organic Waste Mapping Tool
+# Author: Alireza Taghdisian
+# Date: 2025
+# Project: Carbon-MOWS (Carbon Footprint of Municipal Organic Waste Systems)
+# Repository: https://github.com/alirezt/Carbon-MOWS
+# 
+# DESCRIPTION:
+# This Shiny application is developed to support the spatial 
+# analysis and visualization of organic waste collection systems 
+# and socioeconomic characteristics in Montreal, Canada.
+#
+# The tool enables users to:
+# - Visualize various municipal shapefiles, including household 
+#   and food waste collection boundaries.
+# - Explore dissemination area-level socioeconomic indicators 
+#   (e.g., median employment income) using interactive maps and histograms.
+# - Compare spatial patterns between different administrative regions.
+#
+# DATA SOURCES:
+# - Open Montreal municipal shapefiles
+# - Statistics Canada census data
+# - RECYC-QUÉBEC waste management plans
+#
+# PURPOSE:
+# To support analysis and planning around urban organic waste 
+# management and carbon footprint estimation.
+#
+# Dependencies: shiny, leaflet, sf, dplyr, ggplot2, plotly, tidyr
+# ============================================================
+
 library(shiny)
 library(leaflet)
 library(sf)

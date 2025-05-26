@@ -45,6 +45,7 @@ shape_data3 <- st_read("data/montreal_admin_boundaries/limites-administratives-a
 shape_data4 <- st_read("data/Montreal DA.shp")
 shape_data5 <- st_read("data/Montreal Economic Region.shp")
 shape_data6 <- st_read("data/Montreal ADA.shp")  
+shape_data7 <- st_read("data/Montreal Snow.shp")
 
 # Transform to WGS84 (EPSG:4326)
 shape_data_wgs84 <- st_transform(shape_data, crs = 4326)
@@ -53,6 +54,7 @@ shape_data3_wgs84 <- st_transform(shape_data3, crs = 4326)
 shape_data4_wgs84 <- st_transform(shape_data4, crs = 4326)
 shape_data5_wgs84 <- st_transform(shape_data5, crs = 4326)
 shape_data6_wgs84 <- st_transform(shape_data6, crs = 4326)  
+shape_data7_wgs84 <- st_transform(shape_data7, crs = 4326)  
 
 # Add new shape data to the list
 shapefile_list <- list(
@@ -61,7 +63,8 @@ shapefile_list <- list(
   "Montreal Administrative Boundaries" = shape_data3_wgs84,
   "Montreal Dissemination Areas" = shape_data4_wgs84,
   "Montreal Economic Region" = shape_data5_wgs84,
-  "Montreal Aggregated Dissemination Areas" = shape_data6_wgs84  
+  "Montreal Aggregated Dissemination Areas" = shape_data6_wgs84, 
+  "Montreal Snow Removal Data (Test)" = shape_data7_wgs84 
 )
 
 ui <- fluidPage(

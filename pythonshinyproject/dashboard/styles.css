@@ -1,3 +1,22 @@
-:root {
-  --bslib-sidebar-main-bg: #f8f8f8;
+.checkbox-item {
+  background: white;
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 8px;
+  border-left: 4px solid #28a745;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  transition: all 0.2s ease;
+}
+.checkbox-item:hover {
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+  transform: translateY(-1px);
+}
+
+.navbar-nav .nav-link {
+  font-weight: 500;
+  padding: 0.75rem 1.5rem;
+}
+.card {
+  border: none;
+  border-radius: 10px;
 }

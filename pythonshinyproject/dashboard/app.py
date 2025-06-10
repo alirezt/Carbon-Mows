@@ -2,6 +2,8 @@ import brightway2 as bw
 import bw2io as bi
 import pandas as pd
 import matplotlib.pyplot as plt
+import seaborn as sns
+import time
 
 # Import data from shared.py
 from shared import app_dir
@@ -41,13 +43,7 @@ def initialization():
         imp.write_excel(only_unlinked=True)
         imp.write_database()
     
-    for db_name in bw.databases:
-        print(f"Processing database: {db_name}")
-        db = bw.Database(db_name)
-        if hasattr(db, 'process'):
-            db.process()
-    
-    refresh_scenarios(OWM_DATABASE)
+    #refresh_scenarios(OWM_DATABASE)
 
 initialization()
 
@@ -76,8 +72,13 @@ def brightway_tab():
         ui.sidebar(
             ui.output_ui("list_of_scenarios"),
             title="Scenarios",
+            #class_="bg-light"
         ),
-        ui.output_plot("lca_plot"),
+        ui.card(
+             ui.card_header("Life Cycle Assesement Graph"),
+             ui.output_plot("lca_plot"),
+             class_="shadow-sm"
+        ),
         title="Canada OWM Facilities",
         fillable=True,
     )
@@ -103,14 +104,31 @@ app_ui = ui.page_fluid(
     ui.include_css(app_dir / "styles.css"),
 )
 
-# Your server function remains the same
 def server(input, output, session):
     scenarios_rv = reactive.Value(detect_scenarios())
     selected_scenarios = reactive.Value([])
     lca_results = reactive.Value(None)
+    last_change_time = reactive.Value(0)
+
+    @reactive.Effect
+    def track_checkbox_changes():
+        s_list = scenarios_rv()
+        for index, _ in enumerate(s_list):
+            check_id = f"check_scenario_{index}"
+            if check_id in input:
+                input[check_id]()  
+        
+        last_change_time.set(time.time())
 
     @reactive.Effect
     def update_graph():
+        current_time = time.time()
+        change_time = last_change_time()
+        
+        if current_time - change_time < 1:  
+            reactive.invalidate_later(0.1)
+            return
+        
         s_list = scenarios_rv()
         selected = []
 
@@ -132,7 +150,7 @@ def server(input, output, session):
         acts = tuple(activities[0] for activities in list_of if activities)
         
         CC_method = [m for m in bw.methods if 'IPCC 2013' in str(m) and not 'LT' in str(m) and 'GWP 100' in str(m)]
-    
+
         if acts != ():
             FU = [{x:1} for x in acts] 
             bw.calculation_setups['OWM_Scenarios'] = {'inv':FU, 'ia': CC_method}
@@ -140,11 +158,13 @@ def server(input, output, session):
             print(mylca.results)
 
             mylcadf = pd.DataFrame(index = CC_method, columns = [(x['name']) for y in FU for x in y], data=mylca.results.T)
-            df = mylcadf
+            
+            df = mylcadf.copy()
+            df.index = ['IPCC 2013' if 'IPCC 2013' in str(idx) else str(idx) for idx in df.index]
+            
             lca_results.set(df)
         else:
             lca_results.set(None)
-
 
     @output
     @render.ui
@@ -165,9 +185,17 @@ def server(input, output, session):
                         scenario['name'],
                         value=False
                     ),
-                    class_="mb-2"
+                    class_="checkbox-item"
                 )
             )
+        
+        scenario_items.append(
+            ui.div(
+                ui.p(f"Select scenarios to analyze", class_="text-muted small mb-3"),
+                ui.span(f"{len(s_list)} ", class_="text-muted small"),
+                ui.span("available", class_="text-muted small")
+            )
+        )
         
         return ui.div(
             *scenario_items
@@ -177,7 +205,7 @@ def server(input, output, session):
     @render.plot
     def lca_plot():
         df = lca_results()
-
+        print(df)
         if df is None:
             fig, ax = plt.subplots(figsize=(10, 6))
             ax.text(0.5, 0.5, 'Select scenarios to display results', 
@@ -187,11 +215,23 @@ def server(input, output, session):
             ax.set_yticks([])
             return fig
         else:
-            fig =  df.plot.bar(
-                xlabel='Impact category',
-                ylabel='Impact score (kg CO2-eq)',
-                figsize=(14,8)
+            plt.style.use('seaborn-v0_8')
+            sns.set_palette("husl")
+
+            fig, ax = plt.subplots(figsize=(14, 8))
+            df.plot.bar(
+                ax=ax,
+                xlabel='Impact Category',
+                ylabel='Impact Score (kg CO2-eq)',
+                color=sns.color_palette("husl", len(df.columns)),
+                alpha=0.8,
+                width=0.7
             )
+
+            ax.set_title('Life Cycle Assessment Results', fontsize=16, fontweight='bold', pad=20)
+            ax.grid(True, alpha=0.3, linestyle='--')
+            ax.spines['top'].set_visible(False)
+            ax.spines['right'].set_visible(False)
         
         return fig
 

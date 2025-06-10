@@ -1,8 +1,7 @@
-import seaborn as sns
-from faicons import icon_svg
 import brightway2 as bw
 import bw2io as bi
 import pandas as pd
+import matplotlib.pyplot as plt
 
 # Import data from shared.py
 from shared import app_dir
@@ -78,6 +77,7 @@ def brightway_tab():
             ui.output_ui("list_of_scenarios"),
             title="Scenarios",
         ),
+        ui.output_plot("lca_plot"),
         title="Canada OWM Facilities",
         fillable=True,
     )
@@ -107,6 +107,7 @@ app_ui = ui.page_fluid(
 def server(input, output, session):
     scenarios_rv = reactive.Value(detect_scenarios())
     selected_scenarios = reactive.Value([])
+    lca_results = reactive.Value(None)
 
     @reactive.Effect
     def update_graph():
@@ -138,6 +139,12 @@ def server(input, output, session):
             mylca = bw.MultiLCA('OWM_Scenarios')
             print(mylca.results)
 
+            mylcadf = pd.DataFrame(index = CC_method, columns = [(x['name']) for y in FU for x in y], data=mylca.results.T)
+            df = mylcadf
+            lca_results.set(df)
+        else:
+            lca_results.set(None)
+
 
     @output
     @render.ui
@@ -165,6 +172,28 @@ def server(input, output, session):
         return ui.div(
             *scenario_items
         )
+    
+    @output
+    @render.plot
+    def lca_plot():
+        df = lca_results()
+
+        if df is None:
+            fig, ax = plt.subplots(figsize=(10, 6))
+            ax.text(0.5, 0.5, 'Select scenarios to display results', 
+                   ha='center', va='center', transform=ax.transAxes,
+                   fontsize=14, color='gray')
+            ax.set_xticks([])
+            ax.set_yticks([])
+            return fig
+        else:
+            fig =  df.plot.bar(
+                xlabel='Impact category',
+                ylabel='Impact score (kg CO2-eq)',
+                figsize=(14,8)
+            )
+        
+        return fig
 
 
 

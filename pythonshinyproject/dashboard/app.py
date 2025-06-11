@@ -4,6 +4,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import time
+from faicons import icon_svg
 
 # Import data from shared.py
 from shared import app_dir
@@ -11,6 +12,15 @@ from shared import app_dir
 from shiny import App, reactive, render, ui
 
 SCENARIO_DB_LOCATION = "data/Scenarios Database.xlsx"
+
+ICONS = {
+    "industry": icon_svg("industry"),
+    "recycle": icon_svg("recycle"), 
+    "leaf": icon_svg("leaf"),
+    "earth": icon_svg("earth-americas"),
+    "bolt": icon_svg("bolt"),
+    "seedling": icon_svg("seedling"),
+}
 
 def refresh_scenarios(database_name):
     imp = bw.ExcelImporter(SCENARIO_DB_LOCATION) 
@@ -111,6 +121,7 @@ def brightway_tab():
             title="Scenarios",
             #class_="bg-light"
         ),
+        ui.output_ui("lca_value_cards"),
         ui.card(
              ui.card_header("Life Cycle Assesement Graph"),
              ui.output_plot("lca_plot"),
@@ -311,8 +322,34 @@ def server(input, output, session):
             ax.spines['right'].set_visible(False)
         
         return fig
-
-
+    
+    @output
+    @render.ui
+    def lca_value_cards():
+        df = lca_results()
+        
+        if df is None or df.empty:
+            return ui.div()  
+        
+        icon_keys = ["industry", "recycle", "leaf", "earth", "bolt", "seedling"]
+        
+        value_boxes = []
+        
+        for idx, col in enumerate(df.columns):  
+            value = df.iloc[0, idx] 
+            formatted_value = f"{value:.1f}"
+            
+            icon_key = icon_keys[idx % len(icon_keys)]
+            
+            value_boxes.append(
+                ui.value_box(
+                    title=f"Scenario {col}",
+                    value=formatted_value,
+                    showcase=ICONS[icon_key],
+                )
+            )
+        
+        return ui.layout_columns(*value_boxes, fill=False)
 
 
 

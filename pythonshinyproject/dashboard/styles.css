@@ -1,22 +1,138 @@
-.checkbox-item {
-  background: white;
-  border-radius: 8px;
-  padding: 10px;
-  margin-bottom: 8px;
-  border-left: 4px solid #28a745;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+/* Scenario Items */
+.scenario-item {
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  padding: 0;
+  background-color: #ffffff;
   transition: all 0.2s ease;
-}
-.checkbox-item:hover {
-  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-  transform: translateY(-1px);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  margin-bottom: 12px;
 }
 
+.scenario-item:hover {
+  background-color: #f9fafb;
+  border-color: #9ca3af;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Scenario Header */
+.scenario-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 18px;
+  border-bottom: 1px solid transparent;
+}
+
+.scenario-item:hover .scenario-header {
+  border-bottom-color: #e5e7eb;
+}
+
+.scenario-checkbox {
+  flex: 1;
+}
+
+.scenario-checkbox input[type="checkbox"] {
+  margin-right: 10px;
+}
+
+.scenario-checkbox label {
+  font-weight: 600;
+  color: #374151;
+  margin: 0;
+  cursor: pointer;
+}
+
+/* Toggle Button */
+.scenario-toggle-btn {
+  background: none;
+  border: none;
+  padding: 5px 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #6b7280;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.scenario-toggle-btn:hover {
+  background-color: #f3f4f6;
+  color: #374151;
+}
+
+.component-count {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.toggle-arrow {
+  font-size: 0.75rem;
+  transition: transform 0.2s ease;
+  display: inline-block;
+}
+
+.scenario-toggle-btn[aria-expanded="true"] .toggle-arrow {
+  transform: rotate(180deg);
+}
+
+/* Components List */
+.components-list {
+  padding: 15px 18px;
+  border-top: 1px solid #e5e7eb;
+  background-color: #f8fafc;
+  border-radius: 0 0 10px 10px;
+}
+
+.component-item {
+  padding: 6px 0;
+  line-height: 1.5;
+  border-left: 3px solid #e0e7ff;
+  padding-left: 12px;
+  margin-bottom: 4px;
+  background-color: #ffffff;
+  border-radius: 4px;
+  padding: 8px 12px;
+}
+
+.component-item:last-child {
+  margin-bottom: 0;
+}
+
+.component-name {
+  font-weight: 500;
+  color: #1f2937;
+}
+
+.component-percentage {
+  font-style: italic;
+  color: #6b7280;
+  font-size: 0.875rem;
+}
+
+/* Navigation and Cards */
 .navbar-nav .nav-link {
   font-weight: 500;
   padding: 0.75rem 1.5rem;
 }
+
 .card {
   border: none;
   border-radius: 10px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .scenario-header {
+    padding: 12px 15px;
+  }
+  
+  .components-list {
+    padding: 12px 15px;
+  }
+  
+  .scenario-toggle-btn {
+    padding: 3px 8px;
+  }
 }

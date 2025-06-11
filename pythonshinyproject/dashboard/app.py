@@ -56,15 +56,52 @@ def detect_scenarios():
 
         for index, row in df.iterrows():
             if pd.notna(row[0]) and str(row[0]).strip() == "Activity":
+                components = []
+
                 scenario_name = str(row[1]).strip()
+
+                exchanges = False
+                curr = index + 1
+
+                while curr < len(df):
+                    curr_row = df.iloc[curr]
+
+                    if pd.notna(curr_row[0]) and str(curr_row[0]).strip() == "Activity": #Reached next Scenario
+                        break
+                    
+                    if pd.notna(curr_row[0]) and str(curr_row[0]).strip() == "Exchanges":
+                        exchanges = True
+                        curr += 3 #Skip Header and Component Name
+
+                        continue
+
+                    if exchanges and pd.notna(curr_row[0]):
+                        component_name = str(curr_row[0]).strip()
+
+                        if pd.notna(curr_row[2]):
+                            try:
+                                percentage = float(curr_row[3])
+                                components.append({
+                                    'name': component_name,
+                                    'percentage': percentage
+                                })
+                            except (ValueError, TypeError):
+                                print("Excel Format Not Appropriate")
+                                pass
+                    
+                    curr += 1
+
                 scenarios.append({
                     'name': scenario_name,
-                    'row': index + 1
+                    'row': index + 1,
+                    'components': components
                 })
 
     except Exception as e:
         print(f"ERROR: {e}")
     
+    print(scenarios)
+
     return scenarios
 
 def brightway_tab():
@@ -178,14 +215,54 @@ def server(input, output, session):
         
         scenario_items = []
         for index, scenario in enumerate(s_list):
+            components_display = []
+            
+            for component in scenario['components']:
+                percentage = f"{component['percentage']:.2%}"
+                components_display.append(
+                    ui.div(
+                        ui.span(component['name'], class_="component-name"),
+                        ui.span(f" ({percentage})", class_="component-percentage text-muted"),
+                        class_="component-item small"
+                    )
+                )
+            
+            components_count = len(scenario['components'])
+            collapse_id = f"collapse_{index}"
+            
             scenario_items.append(
                 ui.div(
-                    ui.input_checkbox(
-                        f"check_scenario_{index}",
-                        scenario['name'],
-                        value=False
+                    ui.div(
+                        ui.div(
+                            ui.input_checkbox(
+                                f"check_scenario_{index}",
+                                scenario['name'],
+                                value=False
+                            ),
+                            class_="scenario-checkbox"
+                        ),
+                        ui.HTML(f"""
+                            <button class="scenario-toggle-btn" 
+                                    type="button" 
+                                    data-bs-toggle="collapse" 
+                                    data-bs-target="#{collapse_id}" 
+                                    aria-expanded="false" 
+                                    aria-controls="{collapse_id}">
+                                <span class="component-count">({components_count})</span>
+                                <i class="toggle-arrow">▼</i>
+                            </button>
+                        """),
+                        class_="scenario-header"
                     ),
-                    class_="checkbox-item"
+                    ui.div(
+                        ui.div(
+                            *components_display,
+                            class_="components-list"
+                        ),
+                        class_="collapse",
+                        id=collapse_id
+                    ) if components_display else ui.div(),
+                    class_="scenario-item mb-3"
                 )
             )
         
@@ -200,7 +277,7 @@ def server(input, output, session):
         return ui.div(
             *scenario_items
         )
-    
+
     @output
     @render.plot
     def lca_plot():

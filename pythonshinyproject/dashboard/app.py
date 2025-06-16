@@ -12,6 +12,7 @@ from shared import app_dir
 from shiny import App, reactive, render, ui
 
 SCENARIO_DB_LOCATION = "data/Scenarios Database.xlsx"
+OWM_DB_LOCATION = "data/Canada OWM Facilities Database.xlsx"
 
 ICONS = {
     "industry": icon_svg("industry"),
@@ -118,6 +119,11 @@ def brightway_tab():
     return ui.page_sidebar(
         ui.sidebar(
             ui.output_ui("list_of_scenarios"),
+            ui.input_action_button(
+                "add_scenario_button",
+                "Create Scenario",
+                class_="btn-primary mb-3 w-100"
+            ),
             title="Scenarios",
             #class_="bg-light"
         ),
@@ -157,6 +163,20 @@ def server(input, output, session):
     selected_scenarios = reactive.Value([])
     lca_results = reactive.Value(None)
     last_change_time = reactive.Value(0)
+
+    def get_available_components():
+        try:
+            df = pd.read_excel(OWM_DB_LOCATION, header=None, sheet_name="LCI")
+            components = []
+            for index, row in df.iterrows():
+                if pd.notna(row[0]) and str(row[0]).strip() == "Activity":
+                    comp_name = str(row[1]).strip()
+                    components.append(comp_name)
+
+        except Exception as e:
+            print(f"ERROR: {e}")
+        
+        return components
 
     @reactive.Effect
     def track_checkbox_changes():
@@ -213,6 +233,195 @@ def server(input, output, session):
             lca_results.set(df)
         else:
             lca_results.set(None)
+
+    @reactive.Effect
+    @reactive.event(input.add_scenario_button)
+    def show_add_scenario_form():
+        available_components = get_available_components()
+        modal = ui.modal(
+            ui.div(
+                ui.h4("Create New Scenario", class_="mb-3"),
+                ui.hr(),
+                
+                ui.div(
+                    ui.input_text(
+                        "scenario_name",
+                        "Scenario Name:",
+                        placeholder="Enter scenario name...",
+                        value=""
+                    ),
+                    class_="mb-4"
+                ),
+
+                ui.div(
+                    ui.h5("Select Components:", class_="mb-3"),
+                    ui.div(
+                        [ui.input_checkbox(f"component_{i}", comp, value=False) 
+                        for i, comp in enumerate(available_components)],
+                        class_="component-checkboxes mb-3"
+                    ),
+                    class_="mb-4"
+                ),
+
+                ui.div(
+                    ui.output_ui("component_sliders"),
+                    class_="sliders-container"
+                ),
+            
+                ui.div(
+                    ui.output_ui("total_percentage"),
+                    class_="mt-3"
+                )
+            ),
+            footer=ui.div(
+                ui.input_action_button(
+                    "cancel_scenario", 
+                    "Cancel", 
+                    class_="btn-secondary me-2"
+                ),
+                ui.output_ui("save_button_dynamic"), 
+            ),
+            size="l",
+            easy_close=True
+        )
+        ui.modal_show(modal)
+
+    @output
+    @render.ui
+    def save_button_dynamic():
+        available_components = get_available_components()
+        
+        total = 0
+        selected_count = 0
+        
+        for i in range(len(available_components)):
+            checkbox_id = f"component_{i}"
+            slider_id = f"slider_{i}"
+            
+            if checkbox_id in input and input[checkbox_id]():
+                selected_count += 1
+                if slider_id in input:
+                    total += input[slider_id]()
+        
+        scenario_name = input.scenario_name() if "scenario_name" in input else ""
+        scenario_name = scenario_name.strip()
+        
+        existing_scenarios = scenarios_rv()
+        existing_names = [scenario['name'].lower() for scenario in existing_scenarios]
+        
+        name_valid = (
+            scenario_name != "" and  
+            scenario_name.lower() not in existing_names  
+        )
+        
+        is_enabled = (
+            total == 100 and 
+            name_valid and 
+            selected_count > 0
+        )
+        
+        if is_enabled:
+            return ui.input_action_button(
+                "save_scenario", 
+                "Save Scenario", 
+                class_="btn-primary"
+            )
+        else:
+            return ui.input_action_button(
+                "save_scenario_disabled", 
+                "Save Scenario", 
+                class_="btn-secondary",
+                disabled=True
+            )
+        
+    @output
+    @render.ui
+    def component_sliders():
+        available_components = get_available_components()
+        
+        selected_components = []
+        for i, comp in enumerate(available_components):
+            checkbox_id = f"component_{i}"
+            if checkbox_id in input and input[checkbox_id]():
+                selected_components.append((i, comp))
+        
+        if not selected_components:
+            return ui.div()
+        
+        sliders = []
+        sliders.append(ui.h5("Component Allocation:", class_="mb-3"))
+        
+        for i, comp_name in selected_components:
+            slider_id = f"slider_{i}"
+            current_value = input[slider_id]() if slider_id in input else 0
+            
+            sliders.append(
+                ui.div(
+                    ui.input_slider(
+                        slider_id,
+                        comp_name,
+                        min=1,
+                        max=100,
+                        value=current_value,
+                        step=1,
+                        post="%"
+                    ),
+                    class_="mb-2"
+                )
+            )
+        
+        return ui.div(*sliders)
+
+    @output
+    @render.ui  
+    def total_percentage():
+        available_components = get_available_components()
+        
+        total = 0
+        selected_count = 0
+        
+        for i in range(len(available_components)):
+            checkbox_id = f"component_{i}"
+            slider_id = f"slider_{i}"
+            
+            if checkbox_id in input and input[checkbox_id]():
+                selected_count += 1
+                if slider_id in input:
+                    total += input[slider_id]()
+        
+        if selected_count == 0:
+            return ui.div()
+        
+        if total == 100:
+            alert_class = "alert-success"
+            icon = "✓"
+            message = f"{icon} Total: {total}% - Perfect!"
+        elif total < 100:
+            alert_class = "alert-warning" 
+            icon = "⚠"
+            message = f"{icon} Total: {total}% - Need {100-total}% more"
+        else:
+            alert_class = "alert-danger"
+            icon = "⚠"
+            message = f"{icon} Total: {total}% - {total-100}% over limit!"
+        
+        return ui.div(
+            ui.div(
+                message,
+                class_=f"alert {alert_class} mb-0"
+            )
+        )
+          
+    @reactive.Effect
+    @reactive.event(input.cancel_scenario)
+    def hide_add_scenario_form():
+        ui.modal_remove()
+
+    @reactive.Effect
+    @reactive.event(input.save_scenario)
+    def hide_save_form():
+        print("Scenario Saved")
+        ui.modal_remove()
 
     @output
     @render.ui

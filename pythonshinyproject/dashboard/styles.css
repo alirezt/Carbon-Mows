@@ -127,13 +127,60 @@
   .scenario-header {
     padding: 12px 15px;
   }
-  
+
   .components-list {
     padding: 12px 15px;
   }
-  
+
   .scenario-toggle-btn {
     padding: 3px 8px;
   }
 }
 
+/* Component checkbox styling */
+.component-checkboxes {
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid #dee2e6;
+  border-radius: 0.375rem;
+  padding: 1rem;
+  background-color: #f8f9fa;
+}
+
+.component-checkboxes .form-check {
+  margin-bottom: 0.5rem;
+}
+
+/* Sliders container */
+.sliders-container {
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid #dee2e6;
+  border-radius: 0.375rem;
+  padding: 1rem;
+  background-color: #ffffff;
+}
+
+/* Alert styling for total percentage */
+.alert {
+  font-weight: 500;
+  text-align: center;
+}
+
+.alert-success {
+  background-color: #d1edff;
+  border-color: #0ea5e9;
+  color: #0369a1;
+}
+
+.alert-warning {
+  background-color: #fef3c7;
+  border-color: #f59e0b;
+  color: #92400e;
+}
+
+.alert-danger {
+  background-color: #fee2e2;
+  border-color: #ef4444;
+  color: #dc2626;
+}

@@ -78,12 +78,12 @@ def detect_scenarios():
                 while curr < len(df):
                     curr_row = df.iloc[curr]
 
-                    if pd.notna(curr_row[0]) and str(curr_row[0]).strip() == "Activity": #Reached next Scenario
+                    if pd.notna(curr_row[0]) and str(curr_row[0]).strip() == "Activity": 
                         break
                     
                     if pd.notna(curr_row[0]) and str(curr_row[0]).strip() == "Exchanges":
                         exchanges = True
-                        curr += 3 #Skip Header and Component Name
+                        curr += 3 
 
                         continue
 
@@ -103,10 +103,13 @@ def detect_scenarios():
                     
                     curr += 1
 
+                scenario_id = f"scenario_{abs(hash(scenario_name + str(index)))}"
+                
                 scenarios.append({
                     'name': scenario_name,
                     'row': index + 1,
-                    'components': components
+                    'components': components,
+                    'id': scenario_id
                 })
 
     except Exception as e:
@@ -118,12 +121,13 @@ def detect_scenarios():
 
 def save_scenario_to_database(name, description, components):
     try:
-        df = pd.read_excel(SCENARIO_DB_LOCATION, header=None, sheet_name="Sheet1")
+        workbook = openpyxl.load_workbook(SCENARIO_DB_LOCATION, data_only=False)  
+        ws = workbook['Sheet1']
 
         last_row = 0
-        for index, row in df.iterrows():
-            if pd.notna(row[0]) or pd.notna(row[1]):  
-                last_row = index
+        for row_num in range(1, ws.max_row + 1):
+            if ws.cell(row=row_num, column=1).value is not None or ws.cell(row=row_num, column=2).value is not None:
+                last_row = row_num
         
         start_row = last_row + 5
 
@@ -168,23 +172,65 @@ def save_scenario_to_database(name, description, components):
             new_rows.append(component_row)
         
         for i, new_row in enumerate(new_rows):
-            row_index = start_row + i
-
-            while len(df) <= row_index:
-                df.loc[len(df)] = [""] * len(df.columns)
-            
+            row_num = start_row + i
             for col_idx, value in enumerate(new_row):
-                if col_idx < len(df.columns):
-                    df.iloc[row_index, col_idx] = value
+                if col_idx < 9:  
+                    ws.cell(row=row_num, column=col_idx + 1, value=value)
         
-        with pd.ExcelWriter(SCENARIO_DB_LOCATION, engine='openpyxl', mode='w') as writer:
-            df.to_excel(writer, sheet_name='Sheet1', index=False, header=False)
+        workbook.save(SCENARIO_DB_LOCATION)
+        workbook.close()
+
+        return 1
+    
+    except Exception as e:
+        print(e)
+        return 0
+
+def delete_scenario_from_database(name):
+    print(f"deleting {name}")
+    try:
+        workbook = openpyxl.load_workbook(SCENARIO_DB_LOCATION, data_only=False)  # Keep formulas
+        ws = workbook['Sheet1']
+
+        start_row = None
+        end_row = ws.max_row + 1
+
+        for row_num in range(1, ws.max_row + 1):
+            cell_value = ws.cell(row=row_num, column=1).value
+            if cell_value == "Activity":
+                scenario_name_cell = ws.cell(row=row_num, column=2).value
+                if scenario_name_cell == name:
+                    start_row = row_num
+                    break
+        
+        if start_row is None:
+            print(f"Scenario '{name}' not found")
+            workbook.close()
+            return 0
+        
+        for row_num in range(start_row + 1, ws.max_row + 1):
+            cell_value = ws.cell(row=row_num, column=1).value
+            if cell_value == "Activity":
+                end_row = row_num
+                break
+    
+        rows_to_delete = end_row - start_row
+
+        print(start_row)
+        print(end_row)
+
+        for _ in range(rows_to_delete):
+            ws.delete_rows(start_row)
+        
+        workbook.save(SCENARIO_DB_LOCATION)
+        workbook.close()
         
         return 1
     
     except Exception as e:
         print(e)
         return 0
+
 
 
 def brightway_tab():
@@ -235,6 +281,7 @@ def server(input, output, session):
     selected_scenarios = reactive.Value([])
     lca_results = reactive.Value(None)
     last_change_time = reactive.Value(0)
+    deletion_in_progress = reactive.Value(False)
 
     def get_available_components():
         try:
@@ -368,7 +415,40 @@ def server(input, output, session):
             easy_close=True
         )
         ui.modal_show(modal)
+    
+    @reactive.Effect  
+    def delete_scenario():
+        if deletion_in_progress():
+            return
+            
+        s_list = scenarios_rv()
+        
+        for scenario in s_list:
+            delete_btn_id = f"delete_btn_{scenario['id']}"
+            
+            if delete_btn_id in input:
+                button_clicks = input[delete_btn_id]()
+                
+                if button_clicks and button_clicks > 0:
+                    deletion_in_progress.set(True)
+                    
+                    scenario_name = scenario['name']
+                    print(f"Deleting scenario: {scenario_name}")
+                    
+                    success = delete_scenario_from_database(scenario_name)
+                    
+                    if success:
+                        scenarios_rv.set(detect_scenarios())
 
+                        if scenarios_rv() != []:
+                            refresh_scenarios(OWM_DATABASE)  
+                        print(f"Successfully deleted scenario: {scenario_name}")
+                    else:
+                        print(f"Failed to delete scenario '{scenario_name}'")
+                    
+                    deletion_in_progress.set(False)
+                    return  
+                                
     @output
     @render.ui
     def save_button_dynamic():
@@ -557,10 +637,16 @@ def server(input, output, session):
                 )
             
             components_count = len(scenario['components'])
-            collapse_id = f"collapse_{index}"
+            collapse_id = f"collapse_{scenario['id']}" 
             
             scenario_items.append(
                 ui.div(
+                    ui.input_action_button(
+                    f"delete_btn_{scenario['id']}", 
+                    "×",
+                    class_="delete-scenario-btn",
+                    title="Delete scenario"
+                    ),
                     ui.div(
                         ui.div(
                             ui.input_checkbox(

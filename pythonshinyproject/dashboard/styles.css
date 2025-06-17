@@ -184,3 +184,43 @@
   border-color: #ef4444;
   color: #dc2626;
 }
+
+.scenario-item {
+  position: relative;
+}
+
+.scenario-header {
+  padding-right: 35px;
+}
+
+/* Update delete button styling */
+.delete-scenario-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background-color: #dc3545 !important;
+  color: white !important;
+  border: none !important;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 !important;
+}
+
+.delete-scenario-btn:hover {
+  background-color: #c82333 !important;
+  transform: scale(1.1);
+}
+
+.scenario-item:hover .delete-scenario-btn {
+  opacity: 1;
+}

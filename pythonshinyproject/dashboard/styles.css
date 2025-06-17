@@ -1,0 +1,226 @@
+/* Scenario Items */
+.scenario-item {
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  padding: 0;
+  background-color: #ffffff;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  margin-bottom: 12px;
+}
+
+.scenario-item:hover {
+  background-color: #f9fafb;
+  border-color: #9ca3af;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Scenario Header */
+.scenario-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 18px;
+  border-bottom: 1px solid transparent;
+}
+
+.scenario-item:hover .scenario-header {
+  border-bottom-color: #e5e7eb;
+}
+
+.scenario-checkbox {
+  flex: 1;
+}
+
+.scenario-checkbox input[type="checkbox"] {
+  margin-right: 10px;
+}
+
+.scenario-checkbox label {
+  font-weight: 600;
+  color: #374151;
+  margin: 0;
+  cursor: pointer;
+}
+
+/* Toggle Button */
+.scenario-toggle-btn {
+  background: none;
+  border: none;
+  padding: 5px 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #6b7280;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.scenario-toggle-btn:hover {
+  background-color: #f3f4f6;
+  color: #374151;
+}
+
+.component-count {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.toggle-arrow {
+  font-size: 0.75rem;
+  transition: transform 0.2s ease;
+  display: inline-block;
+}
+
+.scenario-toggle-btn[aria-expanded="true"] .toggle-arrow {
+  transform: rotate(180deg);
+}
+
+/* Components List */
+.components-list {
+  padding: 15px 18px;
+  border-top: 1px solid #e5e7eb;
+  background-color: #f8fafc;
+  border-radius: 0 0 10px 10px;
+}
+
+.component-item {
+  padding: 6px 0;
+  line-height: 1.5;
+  border-left: 3px solid #e0e7ff;
+  padding-left: 12px;
+  margin-bottom: 4px;
+  background-color: #ffffff;
+  border-radius: 4px;
+  padding: 8px 12px;
+}
+
+.component-item:last-child {
+  margin-bottom: 0;
+}
+
+.component-name {
+  font-weight: 500;
+  color: #1f2937;
+}
+
+.component-percentage {
+  font-style: italic;
+  color: #6b7280;
+  font-size: 0.875rem;
+}
+
+/* Navigation and Cards */
+.navbar-nav .nav-link {
+  font-weight: 500;
+  padding: 0.75rem 1.5rem;
+}
+
+.card {
+  border: none;
+  border-radius: 10px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .scenario-header {
+    padding: 12px 15px;
+  }
+
+  .components-list {
+    padding: 12px 15px;
+  }
+
+  .scenario-toggle-btn {
+    padding: 3px 8px;
+  }
+}
+
+/* Component checkbox styling */
+.component-checkboxes {
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid #dee2e6;
+  border-radius: 0.375rem;
+  padding: 1rem;
+  background-color: #f8f9fa;
+}
+
+.component-checkboxes .form-check {
+  margin-bottom: 0.5rem;
+}
+
+/* Sliders container */
+.sliders-container {
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid #dee2e6;
+  border-radius: 0.375rem;
+  padding: 1rem;
+  background-color: #ffffff;
+}
+
+/* Alert styling for total percentage */
+.alert {
+  font-weight: 500;
+  text-align: center;
+}
+
+.alert-success {
+  background-color: #d1edff;
+  border-color: #0ea5e9;
+  color: #0369a1;
+}
+
+.alert-warning {
+  background-color: #fef3c7;
+  border-color: #f59e0b;
+  color: #92400e;
+}
+
+.alert-danger {
+  background-color: #fee2e2;
+  border-color: #ef4444;
+  color: #dc2626;
+}
+
+.scenario-item {
+  position: relative;
+}
+
+.scenario-header {
+  padding-right: 35px;
+}
+
+/* Update delete button styling */
+.delete-scenario-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background-color: #dc3545 !important;
+  color: white !important;
+  border: none !important;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 !important;
+}
+
+.delete-scenario-btn:hover {
+  background-color: #c82333 !important;
+  transform: scale(1.1);
+}
+
+.scenario-item:hover .delete-scenario-btn {
+  opacity: 1;
+}

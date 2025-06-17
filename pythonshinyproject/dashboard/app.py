@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import time
 from faicons import icon_svg
+import openpyxl
 
 # Import data from shared.py
 from shared import app_dir
@@ -13,6 +14,7 @@ from shiny import App, reactive, render, ui
 
 SCENARIO_DB_LOCATION = "data/Scenarios Database.xlsx"
 OWM_DB_LOCATION = "data/Canada OWM Facilities Database.xlsx"
+OWM_DATABASE = "OWM LCA"
 
 ICONS = {
     "industry": icon_svg("industry"),
@@ -36,7 +38,6 @@ def initialization():
     """Method to initialize brightway databse when first running the app"""
     PROJECT_NAME = "testproject5"
     DATABASE_NAME = "ecoinvent-3.8-cutoff"
-    OWM_DATABASE = "OWM LCA"
 
     bw.projects.set_current(PROJECT_NAME)
 
@@ -114,6 +115,77 @@ def detect_scenarios():
     print(scenarios)
 
     return scenarios
+
+def save_scenario_to_database(name, description, components):
+    try:
+        df = pd.read_excel(SCENARIO_DB_LOCATION, header=None, sheet_name="Sheet1")
+
+        last_row = 0
+        for index, row in df.iterrows():
+            if pd.notna(row[0]) or pd.notna(row[1]):  
+                last_row = index
+        
+        start_row = last_row + 5
+
+        new_rows = []
+
+        activity_row = [""] * 9
+        activity_row[0] = "Activity"
+        activity_row[1] = name
+
+        new_rows.append(activity_row)
+
+        metadata_rows = [
+            ["comment", description, "", "", "", "", "", "", ""],
+            ["location", "CA-QC", "", "", "", "", "", "", ""],
+            ["production amount", "1", "", "", "", "", "", "", ""],
+            ["unit", "tonne", "", "", "", "", "", "", ""],
+            ["", "", "", "", "", "", "", "", ""],  
+        ]
+
+        new_rows.extend(metadata_rows)
+        new_rows.append(["Exchanges", "", "", "", "", "", "", "", ""])
+        new_rows.append(["name", "reference product", "unit", "amount", "location", "database", "type", "categories", "comment"])
+
+        new_rows.append([name, "OFMSW", "tonne", "1", "CA-QC", "Scenarios", "production", "", ""])
+
+        for component in components:
+            cname = component["name"]
+            amount = component["percentage"] / 100.0
+
+            component_row = [
+                cname,           
+                "OFMSW",            
+                "tonne",            
+                amount,         
+                "CA-QC",            
+                "OWM Facilities",   
+                "technosphere",     
+                "",                 
+                "",                 
+            ]
+
+            new_rows.append(component_row)
+        
+        for i, new_row in enumerate(new_rows):
+            row_index = start_row + i
+
+            while len(df) <= row_index:
+                df.loc[len(df)] = [""] * len(df.columns)
+            
+            for col_idx, value in enumerate(new_row):
+                if col_idx < len(df.columns):
+                    df.iloc[row_index, col_idx] = value
+        
+        with pd.ExcelWriter(SCENARIO_DB_LOCATION, engine='openpyxl', mode='w') as writer:
+            df.to_excel(writer, sheet_name='Sheet1', index=False, header=False)
+        
+        return 1
+    
+    except Exception as e:
+        print(e)
+        return 0
+
 
 def brightway_tab():
     return ui.page_sidebar(
@@ -252,6 +324,17 @@ def server(input, output, session):
                     ),
                     class_="mb-4"
                 ),
+
+                ui.div(
+                    ui.input_text(
+                        "scenario_description",
+                        "Description:",
+                        placeholder="Enter description... (Optional)",
+                        value=""
+                    ),
+                    class_="mb-4"
+                ),
+
 
                 ui.div(
                     ui.h5("Select Components:", class_="mb-3"),
@@ -420,7 +503,33 @@ def server(input, output, session):
     @reactive.Effect
     @reactive.event(input.save_scenario)
     def hide_save_form():
-        print("Scenario Saved")
+        scenario_name = input.scenario_name().strip()
+        description = input.scenario_description().strip() if "scenario_description" in input else ""
+
+        available_components = get_available_components()
+        selected_components_data = []
+
+        for i in range(len(available_components)):
+            checkbox_id = f"component_{i}"
+            slider_id = f"slider_{i}"
+            
+            if checkbox_id in input and input[checkbox_id]():
+                if slider_id in input:
+                    percentage = input[slider_id]()
+                    selected_components_data.append({
+                        'name': available_components[i],
+                        'percentage': percentage
+                    })
+
+        success = save_scenario_to_database(scenario_name, description, selected_components_data)
+
+        if success:
+            refresh_scenarios(OWM_DATABASE)
+            scenarios_rv.set(detect_scenarios())  
+            print("Scenario Saved")
+        else:
+            print("Failed to save scenario")
+
         ui.modal_remove()
 
     @output

@@ -254,6 +254,11 @@ def brightway_tab():
              ui.output_plot("lca_plot"),
              class_="shadow-sm"
         ),
+        ui.card(
+            ui.card_header("Life Cycle Assesement Contribution Analysis"),
+            ui.output_plot("contribution_plot"),
+            class_="shadow-sm"
+        ),
         title="Canada OWM Facilities",
         fillable=True,
     )
@@ -285,6 +290,7 @@ def server(input, output, session):
     lca_results = reactive.Value(None)
     last_change_time = reactive.Value(0)
     deletion_in_progress = reactive.Value(False)
+    contribution_results = reactive.Value(None)
 
     def get_available_components():
         try:
@@ -334,7 +340,7 @@ def server(input, output, session):
 
         for s in selected_scenarios():
             name = s["name"]
-            l = [a for a in LCAdb if name in a['name']]
+            l = [a for a in LCAdb if name == a['name']]
             list_of.append(l)
         
         acts = tuple(activities[0] for activities in list_of if activities)
@@ -729,6 +735,21 @@ def server(input, output, session):
             ax.spines['right'].set_visible(False)
         
         return fig
+
+    @output
+    @render.plot
+    def contribution_plot():
+        dfs = contribution_results()
+        if dfs is None:
+            fig, ax = plt.subplots(figsize=(10, 6))
+            ax.text(0.5, 0.5, 'Select scenarios to display results', 
+                   ha='center', va='center', transform=ax.transAxes,
+                   fontsize=14, color='gray')
+            ax.set_xticks([])
+            ax.set_yticks([])
+            return fig
+        else:
+            ...
     
     @output
     @render.ui

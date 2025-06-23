@@ -14,7 +14,7 @@ from shiny import App, reactive, render, ui
 
 SCENARIO_DB_LOCATION = "data/Scenarios Database.xlsx"
 OWM_DB_LOCATION = "data/Canada OWM Facilities Database.xlsx"
-OWM_DATABASE = "OWM LCA"
+OWM_DATABASE = "OWM Facilities"
 
 ICONS = {
     "industry": icon_svg("industry"),
@@ -36,15 +36,17 @@ def refresh_scenarios(database_name):
 
 def initialization():
     """Method to initialize brightway databse when first running the app"""
-    PROJECT_NAME = "testproject5"
-    DATABASE_NAME = "ecoinvent-3.8-cutoff"
+    PROJECT_NAME = "testproject7"
+    DATABASE_NAME = "ecoinvent-3.9.1-cutoff"
 
     bw.projects.set_current(PROJECT_NAME)
 
+    print(bw.databases)
+    
     if DATABASE_NAME not in bw.databases:
         bw.bw2setup()
         print(bw.databases)
-        bi.import_ecoinvent_release('3.8', 'cutoff','ebenezer.kwofie@mcgill.ca', '2EBz*!#0DCH4')
+        bi.import_ecoinvent_release('3.9.1', 'cutoff','ebenezer.kwofie@mcgill.ca', '2EBz*!#0DCH4')
     
     if OWM_DATABASE not in bw.databases:
         imp = bi.ExcelImporter(r"data/Canada OWM Facilities Database.xlsx")
@@ -55,7 +57,7 @@ def initialization():
         imp.write_excel(only_unlinked=True)
         imp.write_database()
     
-    #refresh_scenarios(OWM_DATABASE)
+    refresh_scenarios(OWM_DATABASE)
 
 initialization()
 
@@ -336,7 +338,7 @@ def server(input, output, session):
         
         acts = tuple(activities[0] for activities in list_of if activities)
         
-        CC_method = [m for m in bw.methods if 'IPCC 2013' in str(m) and not 'LT' in str(m) and 'GWP 100' in str(m)]
+        CC_method = [m for m in bw.methods if 'IPCC 2021' in str(m) and not 'LT' in str(m) and 'GWP100' in str(m) and 'climate change' in str(m) and not 'biogenic' in str(m) and not 'fossil' in str(m) and not 'land use' in str(m) and not 'SLCFs' in str(m)]
 
         if acts != ():
             FU = [{x:1} for x in acts] 
@@ -347,7 +349,7 @@ def server(input, output, session):
             mylcadf = pd.DataFrame(index = CC_method, columns = [(x['name']) for y in FU for x in y], data=mylca.results.T)
             
             df = mylcadf.copy()
-            df.index = ['IPCC 2013' if 'IPCC 2013' in str(idx) else str(idx) for idx in df.index]
+            df.index = ['IPCC 2021' if 'IPCC 2021' in str(idx) else str(idx) for idx in df.index]
             
             lca_results.set(df)
         else:

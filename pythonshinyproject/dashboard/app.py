@@ -347,11 +347,12 @@ def server(input, output, session):
         
         CC_method = [m for m in bw.methods if 'IPCC 2021' in str(m) and not 'LT' in str(m) and 'GWP100' in str(m) and 'climate change' in str(m) and not 'biogenic' in str(m) and not 'fossil' in str(m) and not 'land use' in str(m) and not 'SLCFs' in str(m)]
 
+        #LCA
+
         if acts != ():
             FU = [{x:1} for x in acts] 
             bw.calculation_setups['OWM_Scenarios'] = {'inv':FU, 'ia': CC_method}
             mylca = bw.MultiLCA('OWM_Scenarios')
-            print(mylca.results)
 
             mylcadf = pd.DataFrame(index = CC_method, columns = [(x['name']) for y in FU for x in y], data=mylca.results.T)
             
@@ -361,6 +362,98 @@ def server(input, output, session):
             lca_results.set(df)
         else:
             lca_results.set(None)
+        
+        #Contribution Analysis
+
+        if acts != ():
+
+            act = bw.Database(acts[0]['database']).get(acts[0]['code'])
+            functional_unit = {act: 1} 
+            mymethod = CC_method[0]
+            lca = bw.LCA(functional_unit, mymethod)
+            lca.lci()
+            lca.lcia()
+
+            def dolcacalc(act, mydemand, mymethod):
+                my_fu = {act: mydemand} 
+                lca = bw.LCA(my_fu, mymethod)
+                lca.lci()
+                lca.lcia()
+                return lca.score
+
+            def getLCAresults(list_acts, mymethod):
+                
+                all_activities = []
+                results = []
+                for a in list_acts:
+                    act = bw.Database(a[0]).get(a[1])
+                    print(act)
+                    all_activities.append(act['name'])
+                    results.append(dolcacalc(act,1,mymethod)) # 1 stays for one unit of each process
+                    #print(act['name'])
+                
+                results_dict = dict(zip(all_activities, results))
+                
+                return results_dict
+
+            ca_dict = {}
+
+            for act in acts:
+                
+                exc_list = []
+                contr_list = []
+
+                for exc in list(act.exchanges()):
+                    
+                    if exc['type'] == 'biosphere':
+                        
+                        col = lca.activity_dict[exc['output']] # find column index of A matrix for the activity
+                        row = lca.biosphere_dict[exc['input']] # find row index of B matrix for the exchange
+                        contr_score = lca.biosphere_matrix[row,col] * lca.characterization_matrix[row,row]
+                        contr_list.append((exc['input'],exc['type'], exc['amount'], contr_score))
+                        
+                    elif exc['type'] == 'substitution':
+                        
+                        contr_score = dolcacalc(bw.Database(exc['input'][0]).get(exc['input'][1]), exc['amount'], mymethod)
+                        contr_list.append((exc['name'],exc['input'], exc['type'], exc['amount'], -contr_score))
+                        
+                    else:
+                        
+                        contr_score = dolcacalc(bw.Database(exc['input'][0]).get(exc['input'][1]), exc['amount'], mymethod)
+                        contr_list.append((exc['name'], exc['input'], exc['type'], exc['amount'], contr_score))
+                    
+                ca_dict[act['name']] =  contr_list
+
+            contribution_tables = {}  # Dictionary to store tables for each scenario
+
+            for act in acts:
+                name = act['name']
+                df = pd.DataFrame(ca_dict[name], columns=['name', 'input', 'type', 'amount', 'contribution'])
+
+                production_total = df.loc[df['type'] == 'production', 'contribution'].sum()
+                df['%_contribution'] = 100 * df['contribution'] / production_total
+
+                df = df.sort_values(by='contribution', ascending=False)
+
+                contribution_tables[name] = df
+
+
+            all_scenarios_df = []
+
+            for act in acts:
+                scenario_name = act['name']
+                df_temp = pd.DataFrame(ca_dict[scenario_name], columns=['name', 'input', 'type', 'amount', 'contribution'])
+                df_temp = df_temp[df_temp['type'] == 'technosphere'].copy()
+                df_temp['Scenario'] = scenario_name  # Add scenario label
+                all_scenarios_df.append(df_temp)
+
+            combined_df = pd.concat(all_scenarios_df, ignore_index=True)
+            print(combined_df)
+
+            contributions = [combined_df, mylca]
+            contribution_results.set(contributions)
+        else:
+            contribution_results.set(None)
 
     @reactive.Effect
     @reactive.event(input.add_scenario_button)
@@ -740,6 +833,7 @@ def server(input, output, session):
     @render.plot
     def contribution_plot():
         dfs = contribution_results()
+
         if dfs is None:
             fig, ax = plt.subplots(figsize=(10, 6))
             ax.text(0.5, 0.5, 'Select scenarios to display results', 
@@ -749,7 +843,47 @@ def server(input, output, session):
             ax.set_yticks([])
             return fig
         else:
-            ...
+            df = dfs[0]
+            pivot_df = df.pivot_table(index='Scenario', columns='name', values='contribution', aggfunc='sum')
+            pivot_df = pivot_df.fillna(0)  
+
+            fig, ax = plt.subplots(figsize=(14, 8))
+            
+            pivot_df.plot(
+                kind='bar',
+                stacked=True,
+                ax=ax,  
+                colormap='tab20',
+                width=0.7
+            )
+
+            scenario_names = pivot_df.index.tolist()
+
+            lcas = dfs[1]
+            total_scores = [lcas.results[i][0] for i in range(len(scenario_names))]  # assumes 1 method, 3 scenarios
+
+            for i, score in enumerate(total_scores):
+                ax.scatter(
+                    i,                     
+                    score,                 
+                    marker='D',            
+                    color='black',
+                    s=100,  # Make the marker bigger
+                    label='Total Score' if i == 0 else "",  
+                    zorder=5
+                )
+
+            ax.set_xlabel('', fontsize=12)
+            ax.set_ylabel('Impact contribution (kg CO2-eq)', fontsize=12)
+            ax.set_xticklabels(ax.get_xticklabels(), rotation=0)
+            ax.legend(title='Facility / Total', bbox_to_anchor=(1.05, 1), loc='upper left')
+            ax.grid(True, alpha=0.3, linestyle='--')
+            ax.spines['top'].set_visible(False)
+            ax.spines['right'].set_visible(False)
+            
+            plt.tight_layout(pad=1.5)
+            
+            return fig  
     
     @output
     @render.ui

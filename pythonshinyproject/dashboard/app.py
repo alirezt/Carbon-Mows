@@ -6,6 +6,7 @@ import seaborn as sns
 import time
 from faicons import icon_svg
 import openpyxl
+import random
 
 # Import data from shared.py
 from shared import app_dir
@@ -105,7 +106,7 @@ def detect_scenarios():
                     
                     curr += 1
 
-                scenario_id = f"scenario_{abs(hash(scenario_name + str(index)))}"
+                scenario_id = f"scenario_{abs(hash(scenario_name + str(index) + str(random.randrange(15000))))}"
                 
                 scenarios.append({
                     'name': scenario_name,
@@ -226,7 +227,7 @@ def delete_scenario_from_database(name):
         
         workbook.save(SCENARIO_DB_LOCATION)
         workbook.close()
-        
+
         return 1
     
     except Exception as e:

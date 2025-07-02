@@ -41,8 +41,6 @@ def initialization():
     DATABASE_NAME = "ecoinvent-3.9.1-cutoff"
 
     bw.projects.set_current(PROJECT_NAME)
-
-    print(bw.databases)
     
     if DATABASE_NAME not in bw.databases:
         bw.bw2setup()
@@ -118,7 +116,6 @@ def detect_scenarios():
     except Exception as e:
         print(f"ERROR: {e}")
     
-    print(scenarios)
 
     return scenarios
 
@@ -245,20 +242,33 @@ def brightway_tab():
                 "Create Scenario",
                 class_="btn-primary mb-3 w-100"
             ),
+            ui.div(
+                ui.h5("Components"),
+                ui.hr(class_="my-3"),
+                class_="mt-4"
+            ),
+            ui.output_ui("list_of_components"),
             title="Scenarios",
+
             #class_="bg-light"
         ),
         ui.output_ui("lca_value_cards"),
         ui.card(
-             ui.card_header("Life Cycle Assesement Graph"),
+             ui.card_header("Scenario Life Cycle Assesement Graph"),
              ui.output_plot("lca_plot"),
              class_="shadow-sm"
         ),
         ui.card(
-            ui.card_header("Life Cycle Assesement Contribution Analysis"),
+            ui.card_header("Scenario Life Cycle Assesement Contribution Analysis"),
             ui.output_plot("contribution_plot"),
             class_="shadow-sm"
         ),
+        ui.card(
+            ui.card_header("Components Life Cycle Assesement Graph"),
+            ui.output_plot("components_lca_plot"),
+            class_="shadow-sm"
+        ),
+        ui.output_ui("lca_component_value_cards"),
         title="Canada OWM Facilities",
         fillable=True,
     )
@@ -292,6 +302,12 @@ def server(input, output, session):
     deletion_in_progress = reactive.Value(False)
     contribution_results = reactive.Value(None)
 
+    #Components Analysis Values
+
+    components_results = reactive.Value(None)
+    components_last_change_time = reactive.Value(0)
+    selected_components = reactive.Value([])
+
     def get_available_components():
         try:
             df = pd.read_excel(OWM_DB_LOCATION, header=None, sheet_name="LCI")
@@ -315,6 +331,16 @@ def server(input, output, session):
                 input[check_id]()  
         
         last_change_time.set(time.time())
+    
+    @reactive.Effect
+    def track_component_checkbox_changes():
+        c_list = get_available_components()
+        for index, _ in enumerate(c_list):
+            check_id = f"sidebar_component_{index}"
+            if check_id in input:
+                input[check_id]()
+        
+        components_last_change_time.set(time.time())
 
     @reactive.Effect
     def update_graph():
@@ -454,6 +480,57 @@ def server(input, output, session):
             contribution_results.set(contributions)
         else:
             contribution_results.set(None)
+
+    @reactive.Effect
+    def update_components_graph():
+        current_time = time.time()
+        change_time = components_last_change_time()
+        
+        if current_time - change_time < 1:  
+            reactive.invalidate_later(0.1)
+            return
+        
+        components = get_available_components()
+        selected = []
+
+        for index, scenarios in enumerate(components):
+            check_id = f"sidebar_component_{index}"
+            if check_id in input and input[check_id]():
+                selected.append(scenarios)
+        
+        selected_components.set(selected)
+
+        LCAdb = bw.Database("OWM Facilities")
+        list_of = []
+
+        for s in selected_components():
+            l = [a for a in LCAdb if s in a['name']]
+            list_of.append(l)
+        
+        acts = tuple(activities[0] for activities in list_of if activities)
+
+        print(acts)
+        
+        CC_method = [m for m in bw.methods if 'IPCC 2021' in str(m) and not 'LT' in str(m) and 'GWP100' in str(m) and 'climate change' in str(m) and not 'biogenic' in str(m) and not 'fossil' in str(m) and not 'land use' in str(m) and not 'SLCFs' in str(m)]
+
+        #LCA
+
+        if acts != ():
+            FU = [{x:1} for x in acts] 
+            bw.calculation_setups['OWM_Scenarios'] = {'inv':FU, 'ia': CC_method}
+            mylca = bw.MultiLCA('OWM_Scenarios')
+
+            mylcadf = pd.DataFrame(index = CC_method, columns = [(x['name']) for y in FU for x in y], data=mylca.results.T)
+            
+            df = mylcadf.copy()
+            df.index = ['IPCC 2021' if 'IPCC 2021' in str(idx) else str(idx) for idx in df.index]
+            
+            components_results.set(df)
+        else:
+            components_results.set(None)
+        
+
+        
 
     @reactive.Effect
     @reactive.event(input.add_scenario_button)
@@ -796,10 +873,36 @@ def server(input, output, session):
         )
 
     @output
+    @render.ui
+    def list_of_components():
+        available_components = get_available_components()
+
+        component_checkboxes = []
+    
+        for i, component in enumerate(available_components):
+            component_checkboxes.append(
+                ui.div(
+                    ui.input_checkbox(
+                        f"sidebar_component_{i}",
+                        component,
+                        value=False
+                    ),
+                    class_="component-checkbox-item"
+                )
+            )
+        
+        return ui.div(
+            *component_checkboxes,
+            ui.div(
+                ui.p(f"{len(available_components)} components available", 
+                    class_="text-muted small mt-3")
+            )
+        )
+    
+    @output
     @render.plot
     def lca_plot():
         df = lca_results()
-        print(df)
         if df is None:
             fig, ax = plt.subplots(figsize=(10, 6))
             ax.text(0.5, 0.5, 'Select scenarios to display results', 
@@ -886,6 +989,39 @@ def server(input, output, session):
             return fig  
     
     @output
+    @render.plot
+    def components_lca_plot():
+        df = components_results()
+        if df is None:
+            fig, ax = plt.subplots(figsize=(10, 6))
+            ax.text(0.5, 0.5, 'Select components to display results', 
+                   ha='center', va='center', transform=ax.transAxes,
+                   fontsize=14, color='gray')
+            ax.set_xticks([])
+            ax.set_yticks([])
+            return fig
+        else:
+            plt.style.use('seaborn-v0_8')
+            sns.set_palette("husl")
+
+            fig, ax = plt.subplots(figsize=(14, 8))
+            df.plot.bar(
+                ax=ax,
+                xlabel='Impact Category',
+                ylabel='Impact Score (kg CO2-eq)',
+                color=sns.color_palette("husl", len(df.columns)),
+                alpha=0.8,
+                width=0.7
+            )
+
+            ax.set_title('Life Cycle Assessment Results', fontsize=16, fontweight='bold', pad=20)
+            ax.grid(True, alpha=0.3, linestyle='--')
+            ax.spines['top'].set_visible(False)
+            ax.spines['right'].set_visible(False)
+        
+        return fig
+        
+    @output
     @render.ui
     def lca_value_cards():
         df = lca_results()
@@ -906,6 +1042,34 @@ def server(input, output, session):
             value_boxes.append(
                 ui.value_box(
                     title=f"Scenario {col}",
+                    value=formatted_value,
+                    showcase=ICONS[icon_key],
+                )
+            )
+        
+        return ui.layout_columns(*value_boxes, fill=False)
+
+    @output
+    @render.ui
+    def lca_component_value_cards():
+        df = components_results()
+        
+        if df is None or df.empty:
+            return ui.div()  
+        
+        icon_keys = ["seedling", "bolt", "earth", "leaf", "recycle", "industry"]
+        
+        value_boxes = []
+        
+        for idx, col in enumerate(df.columns):  
+            value = df.iloc[0, idx] 
+            formatted_value = f"{value:.1f}"
+            
+            icon_key = icon_keys[idx % len(icon_keys)]
+            
+            value_boxes.append(
+                ui.value_box(
+                    title=f"Component {col}",
                     value=formatted_value,
                     showcase=ICONS[icon_key],
                 )

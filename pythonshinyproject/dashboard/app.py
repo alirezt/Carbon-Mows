@@ -6,6 +6,7 @@ import seaborn as sns
 import time
 from faicons import icon_svg
 import openpyxl
+import random
 
 # Import data from shared.py
 from shared import app_dir
@@ -14,7 +15,7 @@ from shiny import App, reactive, render, ui
 
 SCENARIO_DB_LOCATION = "data/Scenarios Database.xlsx"
 OWM_DB_LOCATION = "data/Canada OWM Facilities Database.xlsx"
-OWM_DATABASE = "OWM LCA"
+OWM_DATABASE = "OWM Facilities"
 
 ICONS = {
     "industry": icon_svg("industry"),
@@ -36,15 +37,15 @@ def refresh_scenarios(database_name):
 
 def initialization():
     """Method to initialize brightway databse when first running the app"""
-    PROJECT_NAME = "testproject5"
-    DATABASE_NAME = "ecoinvent-3.8-cutoff"
+    PROJECT_NAME = "testproject7"
+    DATABASE_NAME = "ecoinvent-3.9.1-cutoff"
 
     bw.projects.set_current(PROJECT_NAME)
-
+    
     if DATABASE_NAME not in bw.databases:
         bw.bw2setup()
         print(bw.databases)
-        bi.import_ecoinvent_release('3.8', 'cutoff','ebenezer.kwofie@mcgill.ca', '2EBz*!#0DCH4')
+        bi.import_ecoinvent_release('3.9.1', 'cutoff','ebenezer.kwofie@mcgill.ca', '2EBz*!#0DCH4')
     
     if OWM_DATABASE not in bw.databases:
         imp = bi.ExcelImporter(r"data/Canada OWM Facilities Database.xlsx")
@@ -55,7 +56,7 @@ def initialization():
         imp.write_excel(only_unlinked=True)
         imp.write_database()
     
-    #refresh_scenarios(OWM_DATABASE)
+    refresh_scenarios(OWM_DATABASE)
 
 initialization()
 
@@ -103,7 +104,7 @@ def detect_scenarios():
                     
                     curr += 1
 
-                scenario_id = f"scenario_{abs(hash(scenario_name + str(index)))}"
+                scenario_id = f"scenario_{abs(hash(scenario_name + str(index) + str(random.randrange(15000))))}"
                 
                 scenarios.append({
                     'name': scenario_name,
@@ -115,7 +116,6 @@ def detect_scenarios():
     except Exception as e:
         print(f"ERROR: {e}")
     
-    print(scenarios)
 
     return scenarios
 
@@ -224,7 +224,7 @@ def delete_scenario_from_database(name):
         
         workbook.save(SCENARIO_DB_LOCATION)
         workbook.close()
-        
+
         return 1
     
     except Exception as e:
@@ -242,15 +242,33 @@ def brightway_tab():
                 "Create Scenario",
                 class_="btn-primary mb-3 w-100"
             ),
+            ui.div(
+                ui.h5("Components"),
+                ui.hr(class_="my-3"),
+                class_="mt-4"
+            ),
+            ui.output_ui("list_of_components"),
             title="Scenarios",
+
             #class_="bg-light"
         ),
         ui.output_ui("lca_value_cards"),
         ui.card(
-             ui.card_header("Life Cycle Assesement Graph"),
+             ui.card_header("Scenario Life Cycle Assesement Graph"),
              ui.output_plot("lca_plot"),
              class_="shadow-sm"
         ),
+        ui.card(
+            ui.card_header("Scenario Life Cycle Assesement Contribution Analysis"),
+            ui.output_plot("contribution_plot"),
+            class_="shadow-sm"
+        ),
+        ui.card(
+            ui.card_header("Components Life Cycle Assesement Graph"),
+            ui.output_plot("components_lca_plot"),
+            class_="shadow-sm"
+        ),
+        ui.output_ui("lca_component_value_cards"),
         title="Canada OWM Facilities",
         fillable=True,
     )
@@ -282,6 +300,13 @@ def server(input, output, session):
     lca_results = reactive.Value(None)
     last_change_time = reactive.Value(0)
     deletion_in_progress = reactive.Value(False)
+    contribution_results = reactive.Value(None)
+
+    #Components Analysis Values
+
+    components_results = reactive.Value(None)
+    components_last_change_time = reactive.Value(0)
+    selected_components = reactive.Value([])
 
     def get_available_components():
         try:
@@ -306,6 +331,16 @@ def server(input, output, session):
                 input[check_id]()  
         
         last_change_time.set(time.time())
+    
+    @reactive.Effect
+    def track_component_checkbox_changes():
+        c_list = get_available_components()
+        for index, _ in enumerate(c_list):
+            check_id = f"sidebar_component_{index}"
+            if check_id in input:
+                input[check_id]()
+        
+        components_last_change_time.set(time.time())
 
     @reactive.Effect
     def update_graph():
@@ -331,27 +366,171 @@ def server(input, output, session):
 
         for s in selected_scenarios():
             name = s["name"]
-            l = [a for a in LCAdb if name in a['name']]
+            l = [a for a in LCAdb if name == a['name']]
             list_of.append(l)
         
         acts = tuple(activities[0] for activities in list_of if activities)
         
-        CC_method = [m for m in bw.methods if 'IPCC 2013' in str(m) and not 'LT' in str(m) and 'GWP 100' in str(m)]
+        CC_method = [m for m in bw.methods if 'IPCC 2021' in str(m) and not 'LT' in str(m) and 'GWP100' in str(m) and 'climate change' in str(m) and not 'biogenic' in str(m) and not 'fossil' in str(m) and not 'land use' in str(m) and not 'SLCFs' in str(m)]
+
+        #LCA
 
         if acts != ():
             FU = [{x:1} for x in acts] 
             bw.calculation_setups['OWM_Scenarios'] = {'inv':FU, 'ia': CC_method}
             mylca = bw.MultiLCA('OWM_Scenarios')
-            print(mylca.results)
 
             mylcadf = pd.DataFrame(index = CC_method, columns = [(x['name']) for y in FU for x in y], data=mylca.results.T)
             
             df = mylcadf.copy()
-            df.index = ['IPCC 2013' if 'IPCC 2013' in str(idx) else str(idx) for idx in df.index]
+            df.index = ['IPCC 2021' if 'IPCC 2021' in str(idx) else str(idx) for idx in df.index]
             
             lca_results.set(df)
         else:
             lca_results.set(None)
+        
+        #Contribution Analysis
+
+        if acts != ():
+
+            act = bw.Database(acts[0]['database']).get(acts[0]['code'])
+            functional_unit = {act: 1} 
+            mymethod = CC_method[0]
+            lca = bw.LCA(functional_unit, mymethod)
+            lca.lci()
+            lca.lcia()
+
+            def dolcacalc(act, mydemand, mymethod):
+                my_fu = {act: mydemand} 
+                lca = bw.LCA(my_fu, mymethod)
+                lca.lci()
+                lca.lcia()
+                return lca.score
+
+            def getLCAresults(list_acts, mymethod):
+                
+                all_activities = []
+                results = []
+                for a in list_acts:
+                    act = bw.Database(a[0]).get(a[1])
+                    print(act)
+                    all_activities.append(act['name'])
+                    results.append(dolcacalc(act,1,mymethod)) # 1 stays for one unit of each process
+                    #print(act['name'])
+                
+                results_dict = dict(zip(all_activities, results))
+                
+                return results_dict
+
+            ca_dict = {}
+
+            for act in acts:
+                
+                exc_list = []
+                contr_list = []
+
+                for exc in list(act.exchanges()):
+                    
+                    if exc['type'] == 'biosphere':
+                        
+                        col = lca.activity_dict[exc['output']] # find column index of A matrix for the activity
+                        row = lca.biosphere_dict[exc['input']] # find row index of B matrix for the exchange
+                        contr_score = lca.biosphere_matrix[row,col] * lca.characterization_matrix[row,row]
+                        contr_list.append((exc['input'],exc['type'], exc['amount'], contr_score))
+                        
+                    elif exc['type'] == 'substitution':
+                        
+                        contr_score = dolcacalc(bw.Database(exc['input'][0]).get(exc['input'][1]), exc['amount'], mymethod)
+                        contr_list.append((exc['name'],exc['input'], exc['type'], exc['amount'], -contr_score))
+                        
+                    else:
+                        
+                        contr_score = dolcacalc(bw.Database(exc['input'][0]).get(exc['input'][1]), exc['amount'], mymethod)
+                        contr_list.append((exc['name'], exc['input'], exc['type'], exc['amount'], contr_score))
+                    
+                ca_dict[act['name']] =  contr_list
+
+            contribution_tables = {}  # Dictionary to store tables for each scenario
+
+            for act in acts:
+                name = act['name']
+                df = pd.DataFrame(ca_dict[name], columns=['name', 'input', 'type', 'amount', 'contribution'])
+
+                production_total = df.loc[df['type'] == 'production', 'contribution'].sum()
+                df['%_contribution'] = 100 * df['contribution'] / production_total
+
+                df = df.sort_values(by='contribution', ascending=False)
+
+                contribution_tables[name] = df
+
+
+            all_scenarios_df = []
+
+            for act in acts:
+                scenario_name = act['name']
+                df_temp = pd.DataFrame(ca_dict[scenario_name], columns=['name', 'input', 'type', 'amount', 'contribution'])
+                df_temp = df_temp[df_temp['type'] == 'technosphere'].copy()
+                df_temp['Scenario'] = scenario_name  # Add scenario label
+                all_scenarios_df.append(df_temp)
+
+            combined_df = pd.concat(all_scenarios_df, ignore_index=True)
+            print(combined_df)
+
+            contributions = [combined_df, mylca]
+            contribution_results.set(contributions)
+        else:
+            contribution_results.set(None)
+
+    @reactive.Effect
+    def update_components_graph():
+        current_time = time.time()
+        change_time = components_last_change_time()
+        
+        if current_time - change_time < 1:  
+            reactive.invalidate_later(0.1)
+            return
+        
+        components = get_available_components()
+        selected = []
+
+        for index, scenarios in enumerate(components):
+            check_id = f"sidebar_component_{index}"
+            if check_id in input and input[check_id]():
+                selected.append(scenarios)
+        
+        selected_components.set(selected)
+
+        LCAdb = bw.Database("OWM Facilities")
+        list_of = []
+
+        for s in selected_components():
+            l = [a for a in LCAdb if s in a['name']]
+            list_of.append(l)
+        
+        acts = tuple(activities[0] for activities in list_of if activities)
+
+        print(acts)
+        
+        CC_method = [m for m in bw.methods if 'IPCC 2021' in str(m) and not 'LT' in str(m) and 'GWP100' in str(m) and 'climate change' in str(m) and not 'biogenic' in str(m) and not 'fossil' in str(m) and not 'land use' in str(m) and not 'SLCFs' in str(m)]
+
+        #LCA
+
+        if acts != ():
+            FU = [{x:1} for x in acts] 
+            bw.calculation_setups['OWM_Scenarios'] = {'inv':FU, 'ia': CC_method}
+            mylca = bw.MultiLCA('OWM_Scenarios')
+
+            mylcadf = pd.DataFrame(index = CC_method, columns = [(x['name']) for y in FU for x in y], data=mylca.results.T)
+            
+            df = mylcadf.copy()
+            df.index = ['IPCC 2021' if 'IPCC 2021' in str(idx) else str(idx) for idx in df.index]
+            
+            components_results.set(df)
+        else:
+            components_results.set(None)
+        
+
+        
 
     @reactive.Effect
     @reactive.event(input.add_scenario_button)
@@ -694,10 +873,36 @@ def server(input, output, session):
         )
 
     @output
+    @render.ui
+    def list_of_components():
+        available_components = get_available_components()
+
+        component_checkboxes = []
+    
+        for i, component in enumerate(available_components):
+            component_checkboxes.append(
+                ui.div(
+                    ui.input_checkbox(
+                        f"sidebar_component_{i}",
+                        component,
+                        value=False
+                    ),
+                    class_="component-checkbox-item"
+                )
+            )
+        
+        return ui.div(
+            *component_checkboxes,
+            ui.div(
+                ui.p(f"{len(available_components)} components available", 
+                    class_="text-muted small mt-3")
+            )
+        )
+    
+    @output
     @render.plot
     def lca_plot():
         df = lca_results()
-        print(df)
         if df is None:
             fig, ax = plt.subplots(figsize=(10, 6))
             ax.text(0.5, 0.5, 'Select scenarios to display results', 
@@ -726,7 +931,96 @@ def server(input, output, session):
             ax.spines['right'].set_visible(False)
         
         return fig
+
+    @output
+    @render.plot
+    def contribution_plot():
+        dfs = contribution_results()
+
+        if dfs is None:
+            fig, ax = plt.subplots(figsize=(10, 6))
+            ax.text(0.5, 0.5, 'Select scenarios to display results', 
+                   ha='center', va='center', transform=ax.transAxes,
+                   fontsize=14, color='gray')
+            ax.set_xticks([])
+            ax.set_yticks([])
+            return fig
+        else:
+            df = dfs[0]
+            pivot_df = df.pivot_table(index='Scenario', columns='name', values='contribution', aggfunc='sum')
+            pivot_df = pivot_df.fillna(0)  
+
+            fig, ax = plt.subplots(figsize=(14, 8))
+            
+            pivot_df.plot(
+                kind='bar',
+                stacked=True,
+                ax=ax,  
+                colormap='tab20',
+                width=0.7
+            )
+
+            scenario_names = pivot_df.index.tolist()
+
+            lcas = dfs[1]
+            total_scores = [lcas.results[i][0] for i in range(len(scenario_names))]  # assumes 1 method, 3 scenarios
+
+            for i, score in enumerate(total_scores):
+                ax.scatter(
+                    i,                     
+                    score,                 
+                    marker='D',            
+                    color='black',
+                    s=100,  # Make the marker bigger
+                    label='Total Score' if i == 0 else "",  
+                    zorder=5
+                )
+
+            ax.set_xlabel('', fontsize=12)
+            ax.set_ylabel('Impact contribution (kg CO2-eq)', fontsize=12)
+            ax.set_xticklabels(ax.get_xticklabels(), rotation=0)
+            ax.legend(title='Facility / Total', bbox_to_anchor=(1.05, 1), loc='upper left')
+            ax.grid(True, alpha=0.3, linestyle='--')
+            ax.spines['top'].set_visible(False)
+            ax.spines['right'].set_visible(False)
+            
+            plt.tight_layout(pad=1.5)
+            
+            return fig  
     
+    @output
+    @render.plot
+    def components_lca_plot():
+        df = components_results()
+        if df is None:
+            fig, ax = plt.subplots(figsize=(10, 6))
+            ax.text(0.5, 0.5, 'Select components to display results', 
+                   ha='center', va='center', transform=ax.transAxes,
+                   fontsize=14, color='gray')
+            ax.set_xticks([])
+            ax.set_yticks([])
+            return fig
+        else:
+            plt.style.use('seaborn-v0_8')
+            sns.set_palette("husl")
+
+            fig, ax = plt.subplots(figsize=(14, 8))
+            df.plot.bar(
+                ax=ax,
+                xlabel='Impact Category',
+                ylabel='Impact Score (kg CO2-eq)',
+                color=sns.color_palette("husl", len(df.columns)),
+                alpha=0.8,
+                width=0.7
+            )
+
+            ax.set_title('Life Cycle Assessment Results', fontsize=16, fontweight='bold', pad=20)
+            ax.grid(True, alpha=0.3, linestyle='--')
+            ax.spines['top'].set_visible(False)
+            ax.spines['right'].set_visible(False)
+        
+        return fig
+        
     @output
     @render.ui
     def lca_value_cards():
@@ -748,6 +1042,34 @@ def server(input, output, session):
             value_boxes.append(
                 ui.value_box(
                     title=f"Scenario {col}",
+                    value=formatted_value,
+                    showcase=ICONS[icon_key],
+                )
+            )
+        
+        return ui.layout_columns(*value_boxes, fill=False)
+
+    @output
+    @render.ui
+    def lca_component_value_cards():
+        df = components_results()
+        
+        if df is None or df.empty:
+            return ui.div()  
+        
+        icon_keys = ["seedling", "bolt", "earth", "leaf", "recycle", "industry"]
+        
+        value_boxes = []
+        
+        for idx, col in enumerate(df.columns):  
+            value = df.iloc[0, idx] 
+            formatted_value = f"{value:.1f}"
+            
+            icon_key = icon_keys[idx % len(icon_keys)]
+            
+            value_boxes.append(
+                ui.value_box(
+                    title=f"Component {col}",
                     value=formatted_value,
                     showcase=ICONS[icon_key],
                 )

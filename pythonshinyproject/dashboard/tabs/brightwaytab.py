@@ -10,8 +10,8 @@ import random
 
 from shiny import reactive, render, ui
 
-SCENARIO_DB_LOCATION = "data/Scenarios Database.xlsx"
-OWM_DB_LOCATION = "data/Canada OWM Facilities Database.xlsx"
+SCENARIO_DB_LOCATION = "data/brightway/Scenarios Database.xlsx"
+OWM_DB_LOCATION = "data/brightway/Canada OWM Facilities Database.xlsx"
 OWM_DATABASE = "OWM Facilities"
 
 ICONS = {
@@ -317,7 +317,7 @@ def brightway_tab_server(input, output, session):
         acts = tuple(activities[0] for activities in list_of if activities)
         
         CC_method = [m for m in bw.methods if 'IPCC 2021' in str(m) and not 'LT' in str(m) and 'GWP100' in str(m) and 'climate change' in str(m) and not 'biogenic' in str(m) and not 'fossil' in str(m) and not 'land use' in str(m) and not 'SLCFs' in str(m)]
-        
+
         # LCA
         if acts != ():
             FU = [{x:1} for x in acts] 

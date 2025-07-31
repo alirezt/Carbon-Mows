@@ -2,8 +2,8 @@ from shiny import ui, render, reactive, App
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
 from matplotlib.ticker import FuncFormatter
+import matplotlib.style as style
 
 def wasteestimation_tab_ui():
     return ui.page_sidebar(
@@ -21,7 +21,7 @@ def wasteestimation_tab_ui():
         ),
         ui.card(
             ui.card_header("Generated vs Collected Residual Materials"),
-            ui.output_plot("waste_plots", height="1600px"),
+            ui.output_plot("waste_plots", height="1800px"),
             height="auto"
         ),
         title="Waste Estimation",
@@ -72,18 +72,24 @@ def wasteestimation_tab_server(input, output, session):
     def waste_plots():
         year = input.selected_year()
         
-        # Create a large figure for all 8 plots
-        fig = plt.figure(figsize=(20, 24))
+        # Create figure with clean styling
+        plt.style.use('default')  # Start with clean default style
+        fig, axs = plt.subplots(4, 2, figsize=(20, 28))
+        fig.patch.set_facecolor('white')
         
         # If no year selected, show message
         if not year:
             fig.text(0.5, 0.5, "Please select a year to view waste data", 
-                    ha='center', va='center', fontsize=20)
+                    ha='center', va='center', fontsize=18, color='#666666')
+            for ax in axs.flat:
+                ax.set_visible(False)
             return fig
             
         if waste_data is None or len(materials_list) == 0:
             fig.text(0.5, 0.5, "Error loading data", 
-                    ha='center', va='center', fontsize=20)
+                    ha='center', va='center', fontsize=18, color='#666666')
+            for ax in axs.flat:
+                ax.set_visible(False)
             return fig
         
         # Filter data for the selected year
@@ -91,11 +97,10 @@ def wasteestimation_tab_server(input, output, session):
         
         if year_data.empty:
             fig.text(0.5, 0.5, f"No data available for year {year}", 
-                    ha='center', va='center', fontsize=20)
+                    ha='center', va='center', fontsize=18, color='#666666')
+            for ax in axs.flat:
+                ax.set_visible(False)
             return fig
-        
-        # Create a 4x2 grid of subplots explicitly
-        axes = fig.subplots(4, 2, squeeze=False)
         
         # Divide materials into exactly 8 groups
         n_materials = len(materials_list)
@@ -103,7 +108,6 @@ def wasteestimation_tab_server(input, output, session):
         if materials_per_group < 1:
             materials_per_group = 1
         
-        # Create exactly 8 groups, some may be empty if not enough materials
         material_groups = []
         for i in range(8):
             start_idx = i * materials_per_group
@@ -112,46 +116,57 @@ def wasteestimation_tab_server(input, output, session):
                 group = materials_list[start_idx:end_idx]
                 material_groups.append(group)
             else:
-                material_groups.append([])  # Empty group
+                material_groups.append([])
         
-        # Ensure we have exactly 8 groups
         while len(material_groups) < 8:
             material_groups.append([])
         
-        # Debug print for materials per group
-        print(f"Materials list length: {n_materials}")
-        for i, group in enumerate(material_groups):
-            print(f"Group {i+1}: {len(group)} materials - {group}")
+        # Beautiful color palette
+        colors = {
+            'Generated': '#FF6B35',  # Modern orange
+            'Collected': '#4A90E2'   # Modern blue
+        }
         
         # Process each group and create a subplot
         for i in range(8):
             row = i // 2
             col = i % 2
-            ax = axes[row, col]
+            ax = axs[row, col]
+            
+            # Clean subplot styling
+            ax.set_facecolor('#fafafa')
+            ax.spines['top'].set_visible(False)
+            ax.spines['right'].set_visible(False)
+            ax.spines['left'].set_color('#cccccc')
+            ax.spines['bottom'].set_color('#cccccc')
             
             materials = material_groups[i] if i < len(material_groups) else []
             
-            # If no materials in this group, show a placeholder
             if not materials:
-                ax.text(0.5, 0.5, f"Group {i+1}: No materials to display", 
-                        ha='center', va='center', transform=ax.transAxes)
-                ax.set_title(f"Group {i+1}")
+                ax.text(0.5, 0.5, f"No materials in group {i+1}", 
+                        ha='center', va='center', transform=ax.transAxes, 
+                        fontsize=12, color='#888888')
+                ax.set_xticks([])
+                ax.set_yticks([])
+                ax.set_title(f"Group {i+1}", fontsize=14, pad=20, color='#333333')
                 continue
             
             # Filter data for these materials
             df_group = year_data[year_data['matiere'].isin(materials)]
             
             if df_group.empty:
-                ax.text(0.5, 0.5, f"No data for materials in group {i+1}", 
-                        ha='center', va='center', transform=ax.transAxes)
-                ax.set_title(f"Materials: {', '.join(materials)}")
+                ax.text(0.5, 0.5, "No data available", 
+                        ha='center', va='center', transform=ax.transAxes,
+                        fontsize=12, color='#888888')
+                ax.set_xticks([])
+                ax.set_yticks([])
+                ax.set_title(', '.join(materials), fontsize=14, pad=20, color='#333333')
                 continue
             
-            # Create a DF for plotting
+            # Create plotting data
             plot_data = []
             for material in materials:
                 material_data = df_group[df_group['matiere'] == material]
-                
                 for _, row in material_data.iterrows():
                     plot_data.append({
                         'material': material,
@@ -163,56 +178,61 @@ def wasteestimation_tab_server(input, output, session):
             plot_df = pd.DataFrame(plot_data)
             
             if plot_df.empty:
-                ax.text(0.5, 0.5, "No data to display", 
-                        ha='center', va='center', transform=ax.transAxes)
-                ax.set_title(f"Materials: {', '.join(materials)}")
                 continue
             
-            # Group by material for plotting
-            material_groups_plot = plot_df.groupby('material')
+            # Aggregate and sort data
+            grouped = plot_df.groupby('territory').agg({
+                'generated': 'mean',
+                'collected': 'mean'
+            }).reset_index()
             
-            # Plot each material separately
-            for material_name, material_group in material_groups_plot:
-                # For each territory, create grouped bars
-                grouped = material_group.groupby('territory').agg({
-                    'generated': 'mean',
-                    'collected': 'mean'
-                }).reset_index()
-                
-                # Sort by total waste
-                grouped['total'] = grouped['generated'] + grouped['collected']
-                grouped = grouped.sort_values('total')
-                
-                # Plot bars
-                x = np.arange(len(grouped))
-                width = 0.35
-                
-                # Generate bars for collected and generated
-                ax.bar(x - width/2, grouped['generated'], width, label='Generated' if i == 0 else "", color='#E69F00')
-                ax.bar(x + width/2, grouped['collected'], width, label='Collected' if i == 0 else "", color='#56B4E9')
-                
-                # Set x-tick labels
-                ax.set_xticks(x)
-                ax.set_xticklabels(grouped['territory'], rotation=45, ha='right', fontsize=6)
-                
-                # Set title and labels
-                ax.set_title(f"Material: {material_name}")
-                ax.set_ylabel('Quantity (tonnes)')
-                
-                # Add grid lines
-                ax.grid(True, axis='y', linestyle='--', alpha=0.7)
-                
-                # Format y-axis with thousands separator
-                ax.yaxis.set_major_formatter(FuncFormatter(lambda x, p: format(int(x), ',')))
+            grouped['total'] = grouped['generated'] + grouped['collected']
+            grouped = grouped.sort_values('total')
             
-            # Only show legend on first plot
+            # Create beautiful bars
+            x = np.arange(len(grouped))
+            width = 0.35
+            
+            bars1 = ax.bar(x - width/2, grouped['generated'], width, 
+                          label='Generated' if i == 0 else "", 
+                          color=colors['Generated'], alpha=0.8, edgecolor='white', linewidth=0.5)
+            bars2 = ax.bar(x + width/2, grouped['collected'], width, 
+                          label='Collected' if i == 0 else "", 
+                          color=colors['Collected'], alpha=0.8, edgecolor='white', linewidth=0.5)
+            
+            # Clean axis formatting
+            ax.set_xticks(x)
+            ax.set_xticklabels([t[:12] + '...' if len(t) > 15 else t for t in grouped['territory']], 
+                              rotation=45, ha='right', fontsize=9, color='#555555')
+            
+            # Format y-axis
+            ax.yaxis.set_major_formatter(FuncFormatter(lambda x, p: f'{int(x/1000)}K' if x >= 1000 else f'{int(x)}'))
+            ax.tick_params(axis='y', labelsize=9, colors='#555555')
+            
+            # Clean title
+            material_title = ', '.join([m[:20] + '...' if len(m) > 23 else m for m in materials])
+            ax.set_title(material_title, fontsize=12, pad=20, color='#333333', weight='bold')
+            ax.set_ylabel('Quantity (tonnes)', fontsize=10, color='#555555')
+            
+            # Light grid
+            ax.grid(True, axis='y', linestyle='--', alpha=0.3, color='#cccccc')
+            
+            # Legend only on first plot
             if i == 0:
-                ax.legend()
+                ax.legend(loc='upper right', frameon=False, fontsize=10)
         
-        # Add overall title
-        fig.suptitle(f"Generated vs Collected Residual Materials by Territory ({year})", fontsize=16)
+        # Clean overall title
+        fig.suptitle(f"Generated vs Collected Residual Materials by Territory ({year})", 
+                    fontsize=18, y=0.98, color='#333333', weight='bold')
         
-        # Adjust layout
-        plt.tight_layout(rect=[0, 0, 1, 0.97])  # Leave room for suptitle
+        # Perfect spacing
+        plt.subplots_adjust(
+            left=0.08,
+            bottom=0.06,
+            right=0.95,
+            top=0.92,
+            wspace=0.3,
+            hspace=0.5
+        )
         
         return fig

@@ -1,8 +1,8 @@
 import brightway2 as bw
 import bw2io as bi
 
-SCENARIO_DB_LOCATION = "data/Scenarios Database.xlsx"
-OWM_DB_LOCATION = "data/Canada OWM Facilities Database.xlsx"
+SCENARIO_DB_LOCATION = "data/brightway/Scenarios Database.xlsx"
+OWM_DB_LOCATION = "data/brightway/Canada OWM Facilities Database.xlsx"
 OWM_DATABASE = "OWM Facilities"
 
 def refresh_scenarios(database_name):

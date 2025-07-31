@@ -11,18 +11,58 @@ def wasteestimation_tab_ui():
             ui.div(
                 ui.h3("Waste Data Controls")
             ),
-            ui.input_select(
+            ui.input_selectize(
                 "selected_year", 
                 "Select Year", 
                 choices=[""] + [str(yr) for yr in range(2012, 2025)],
                 selected=""
             ),
             ui.hr(),
+            ui.input_selectize(
+                "selected_waste_types", 
+                "Select Waste Type", 
+                choices=[
+                    "",
+                    "Matières recyclables",
+                    "Matières organiques", 
+                    "Résidus de construction, rénovation, démolition et encombrants",
+                    "Résidus domestiques dangereux",
+                    "Textiles",
+                    "Autres (produits électroniques)",
+                    "Ordures ménagères éliminées",
+                    "Résidus de construction, rénovation, démolition et encombrants éliminés",
+                    "Résidus domestiques dangereux et PE"
+                ],
+                selected="",
+            ),
+            ui.input_selectize(
+                "selected_territories",
+                "Select Municipalities", 
+                choices=[
+                    "", "Ahuntsic-Cartierville", "Anjou", "Côte-des-Neiges–Notre-Dame-de-Grâce",
+                    "L'Île-Bizard–Sainte-Geneviève", "Lachine", "LaSalle", "Le Plateau-Mont-Royal",
+                    "Le Sud-Ouest", "Mercier–Hochelaga-Maisonneuve", "Montréal-Nord", "Outremont",
+                    "Pierrefonds-Roxboro", "Rivière-des-Prairies–Pointe-aux-Trembles",
+                    "Rosemont–La Petite-Patrie", "Saint-Laurent", "Saint-Léonard", "Verdun",
+                    "Ville-Marie", "Villeray–Saint-Michel–Parc-Extension",
+                    "Baie-d'Urfé", "Beaconsfield", "Côte-Saint-Luc", "Dollard-des Ormeaux",
+                    "Dorval", "Hampstead", "Kirkland", "Montréal-Est", "Montréal-Ouest",
+                    "Mont-Royal", "Pointe-Claire", "Sainte-Anne-de-Bellevue", "Senneville", "Westmount"
+                ],
+                selected="",
+            ),
         ),
         ui.card(
             ui.card_header("Generated vs Collected Residual Materials"),
             ui.output_plot("waste_plots", height="1800px"),
-            height="auto"
+            height="auto",
+            collapsible=True,
+        ),
+        ui.card(
+            ui.card_header("Time Series Analysis"),
+            ui.output_plot("time_series_plot", height="600px"),
+            height="auto",
+            collapsible=True,
         ),
         title="Waste Estimation",
         fillable=True,
@@ -235,4 +275,113 @@ def wasteestimation_tab_server(input, output, session):
             hspace=0.5
         )
         
+        return fig
+
+    @render.plot  
+    def time_series_plot():
+        waste_type = input.selected_waste_types()
+        territory = input.selected_territories()
+        
+        # Create figure with same styling as first graphs
+        plt.style.use('default')
+        fig, ax = plt.subplots(1, 1, figsize=(12, 8))
+        fig.patch.set_facecolor('white')
+        
+        # Check if both selections are made
+        if not waste_type or not territory:
+            fig.text(0.5, 0.5, "Please select both a waste type and a municipality to view time series data", 
+                    ha='center', va='center', fontsize=14, color='#666666')
+            ax.set_visible(False)
+            return fig
+            
+        if waste_data is None:
+            fig.text(0.5, 0.5, "Error loading data", 
+                    ha='center', va='center', fontsize=14, color='#666666')
+            ax.set_visible(False)
+            return fig
+        
+        # Filter data for selected waste type and territory
+        data_filtered = waste_data[
+            (waste_data['matiere'] == waste_type) & 
+            (waste_data['territoire'] == territory)
+        ].copy()
+        
+        if data_filtered.empty:
+            fig.text(0.5, 0.5, f"No data available for {waste_type} in {territory}", 
+                    ha='center', va='center', fontsize=14, color='#666666')
+            ax.set_visible(False)
+            return fig
+        
+        # Reshape to long format
+        data_long = data_filtered.melt(
+            id_vars=['annee'], 
+            value_vars=['quantite_generee_donnees_agglo', 'quantite_collectee_donnees_agglo'],
+            var_name='type', value_name='quantite'
+        )
+        
+        # Recode type
+        type_map = {
+            'quantite_generee_donnees_agglo': 'Generated',
+            'quantite_collectee_donnees_agglo': 'Collected'
+        }
+        data_long['type'] = data_long['type'].map(type_map)
+        
+        # Same styling as first graphs
+        ax.set_facecolor('#fafafa')
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['left'].set_color('#cccccc')
+        ax.spines['bottom'].set_color('#cccccc')
+        
+        # Same color palette
+        colors = {
+            'Generated': '#FF6B35',  # Modern orange
+            'Collected': '#4A90E2'   # Modern blue
+        }
+        
+        # Create the bars
+        generated_data = data_long[data_long['type'] == 'Generated']
+        collected_data = data_long[data_long['type'] == 'Collected']
+        
+        years = sorted(data_long['annee'].unique())
+        x = np.arange(len(years))
+        width = 0.35
+        
+        generated_values = [generated_data[generated_data['annee'] == year]['quantite'].iloc[0] if len(generated_data[generated_data['annee'] == year]) > 0 else 0 for year in years]
+        collected_values = [collected_data[collected_data['annee'] == year]['quantite'].iloc[0] if len(collected_data[collected_data['annee'] == year]) > 0 else 0 for year in years]
+        
+        bars1 = ax.bar(x - width/2, generated_values, width, 
+                    label='Generated', color=colors['Generated'], 
+                    alpha=0.8, edgecolor='white', linewidth=0.5)
+        bars2 = ax.bar(x + width/2, collected_values, width, 
+                    label='Collected', color=colors['Collected'], 
+                    alpha=0.8, edgecolor='white', linewidth=0.5)
+        
+        # Format axes
+        ax.set_xticks(x)
+        ax.set_xticklabels(years, rotation=45, ha='right', fontsize=10, color='#555555')
+        ax.set_xlabel("Year", fontsize=12, color='#555555')
+        ax.set_ylabel("Quantity (tonnes)", fontsize=12, color='#555555')
+        
+        # Format y-axis with same style
+        ax.yaxis.set_major_formatter(FuncFormatter(lambda x, p: f'{int(x/1000)}K' if x >= 1000 else f'{int(x)}'))
+        ax.tick_params(axis='y', labelsize=10, colors='#555555')
+        
+        # Title with same style
+        territory_short = territory[:20] + '...' if len(territory) > 23 else territory
+        waste_type_short = waste_type[:30] + '...' if len(waste_type) > 33 else waste_type
+        ax.set_title(f"Generated vs Collected: {waste_type_short}\nin {territory_short}", 
+                    fontsize=14, pad=20, color='#333333', weight='bold')
+        
+        # Grid and legend with same style
+        ax.grid(True, axis='y', linestyle='--', alpha=0.3, color='#cccccc')
+        ax.legend(loc='upper right', frameon=False, fontsize=12)
+        
+        plt.subplots_adjust(
+            left=0.1,      # Left margin
+            bottom=0.15,   # Bottom margin (increased to prevent x-axis label cutoff)
+            right=0.95,    # Right margin
+            top=0.85       # Top margin (increased to add space below card header)
+        )
+
         return fig

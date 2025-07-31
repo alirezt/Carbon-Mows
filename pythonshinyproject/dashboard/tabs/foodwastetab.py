@@ -11,6 +11,9 @@ def foodwaste_tab_ui():
             ui.div(
                 ui.p("Select layers to display:", class_="text-muted small mb-2"),
                 ui.input_checkbox("show_borough_boundaries", "Borough Boundaries", value=False),
+               # ui.input_checkbox("show_cadastral", "Cadastral Units", value=False),
+                #ui.input_checkbox("show_montreal_buildings", "Montreal Buildings (Microsoft)", value=False),
+                ui.input_checkbox("show_osm_buildings", "OpenStreetMap Buildings", value=False),
                 class_="mb-3"
             ),
             title="Map Layers"
@@ -23,11 +26,43 @@ def foodwaste_tab_ui():
 
 def foodwaste_tab_server(input, output, session):
     
-    SHAPEFILES = ["data/shapefiles/Borough/borough_boundaries.shp"]
     MONTREAL_LAT = 45.5017
     MONTREAL_LON = -73.5673
 
-    borough_layer = reactive.Value(None)
+    # Configuration for each shapefile
+    SHAPEFILE_CONFIG = {
+        "borough_boundaries": {
+            "path": "data/shapefiles/Borough/borough_boundaries.shp",
+            "name": "Borough Boundaries",
+            "color": "blue",
+            "weight": 2,
+            "fillOpacity": 0.3
+        },
+       # "cadastral": {
+        #    "path": "data/shapefiles/CadastralBF/uniteevaluationfonciere.shp",
+         #   "name": "Cadastral Units",
+          #  "color": "red",
+           # "weight": 1,
+            #"fillOpacity": 0.2
+        #},
+        # "montreal_buildings": {
+        #     "path": "data/shapefiles/MicrosoftBF/Montreal_Microsoft.shp",
+        #     "name": "Montreal Buildings",
+        #     "color": "green",
+        #     "weight": 1,
+        #     "fillOpacity": 0.4
+        # },
+        "osm_buildings": {
+            "path": "data/shapefiles/OpenStreetMapBF/gis_osm_buildings_a_free_1.shp",
+            "name": "OSM Buildings",
+            "color": "purple",
+            "weight": 1,
+            "fillOpacity": 0.3
+        }
+    }
+
+    # Store layers as reactive values
+    layers_store = reactive.Value({})
     
     def load_shapefile(shapefile):
         try:
@@ -39,7 +74,7 @@ def foodwaste_tab_server(input, output, session):
             print(f"Error loading shapefile {shapefile}: {e}")
             return None
     
-    def create_geolayer(geodata, name, color='blue'):
+    def create_geolayer(geodata, name, color='blue', weight=2, fillOpacity=0.3):
         if geodata is None:
             return None
         
@@ -47,8 +82,8 @@ def foodwaste_tab_server(input, output, session):
             data=geodata,
             style={
                 'color': color,
-                'weight': 2,
-                'fillOpacity': 0.3,
+                'weight': weight,
+                'fillOpacity': fillOpacity,
                 'fillColor': color,
                 'opacity': 1.0
             },
@@ -70,34 +105,63 @@ def foodwaste_tab_server(input, output, session):
         
         return m
     
-    # Create the borough layer once
-    @reactive.calc
-    def get_borough_layer():
-        if borough_layer.get() is None:
-            geojson_data = load_shapefile(SHAPEFILES[0])
+    def get_or_create_layer(layer_id):
+        current_layers = layers_store.get()
+        
+        if layer_id not in current_layers:
+            config = SHAPEFILE_CONFIG[layer_id]
+            geojson_data = load_shapefile(config["path"])
+            
             if geojson_data:
-                layer = create_geolayer(geojson_data, "borough_boundaries", color='blue')
-                borough_layer.set(layer)
-                print(f"Created borough layer with {len(geojson_data['features'])} features")
-        return borough_layer.get()
+                layer = create_geolayer(
+                    geojson_data, 
+                    layer_id,
+                    color=config["color"],
+                    weight=config["weight"],
+                    fillOpacity=config["fillOpacity"]
+                )
+                current_layers[layer_id] = layer
+                layers_store.set(current_layers)
+                print(f"Created {config['name']} layer with {len(geojson_data['features'])} features")
+            else:
+                print(f"Failed to load {config['name']}")
+                return None
+        
+        return current_layers[layer_id]
     
-    @reactive.effect
-    @reactive.event(input.show_borough_boundaries)
-    def toggle_borough_layer():
-        layer = get_borough_layer()
+    def toggle_layer(layer_id, show):
+        layer = get_or_create_layer(layer_id)
         if layer is None:
-            print("Borough layer is None")
+            print(f"Layer {layer_id} is None")
             return
         
         map_widget = montreal_map.widget
         
-        if input.show_borough_boundaries():
+        if show:
             if layer not in map_widget.layers:
                 map_widget.add_layer(layer)
-                print("Added borough layer to map")
-                
-                
+                print(f"Added {SHAPEFILE_CONFIG[layer_id]['name']} layer to map")
         else:
             if layer in map_widget.layers:
                 map_widget.remove_layer(layer)
-                print("Removed borough layer from map")
+                print(f"Removed {SHAPEFILE_CONFIG[layer_id]['name']} layer from map")
+    
+    @reactive.effect
+    @reactive.event(input.show_borough_boundaries)
+    def toggle_borough_boundaries():
+        toggle_layer("borough_boundaries", input.show_borough_boundaries())
+    
+    # @reactive.effect
+    # @reactive.event(input.show_cadastral)
+    # def toggle_cadastral():
+    #     toggle_layer("cadastral", input.show_cadastral())
+    
+    # @reactive.effect
+    # @reactive.event(input.show_montreal_buildings)
+    # def toggle_montreal_buildings():
+    #     toggle_layer("montreal_buildings", input.show_montreal_buildings())
+    
+    @reactive.effect
+    @reactive.event(input.show_osm_buildings)
+    def toggle_osm_buildings():
+        toggle_layer("osm_buildings", input.show_osm_buildings())

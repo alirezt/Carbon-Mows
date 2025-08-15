@@ -11,7 +11,7 @@ The following guide will explain how to install and run the application locally,
 
 ## Installation
 
-There are many Python libraries that must be installed. The user has the choice of using either pip or conda package manager. However, Conda **must** be used if the app is to be installed on an Apple Silicon hardware.
+There are many Python libraries that must be installed. The user has the choice of using either pip or conda package manager. However, Conda **must** be used if the app is to be installed on an Apple Silicon hardware. If you are on Windows, you must also ensure that the Microsoft C++ Build Tools are installed.
 
 1. Clone the repository:
 

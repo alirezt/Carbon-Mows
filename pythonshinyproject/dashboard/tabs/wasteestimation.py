@@ -70,23 +70,18 @@ def wasteestimation_tab_ui():
 
 
 def wasteestimation_tab_server(input, output, session):
-    # Load data once at startup
     global waste_data, materials_list
     
-    # Initialize global variables
     waste_data = None
     materials_list = []
     
-    # Load data directly
     try:
         url = "https://donnees.montreal.ca/dataset/matieres-residuelles-bilan-massique/resource/1341d644-9dd4-4ade-b2b1-9cec53b7beec/download"
         waste_data = pd.read_csv(url)
         
-        # Clean numeric columns (columns 4 to 11)
         for col in waste_data.columns[3:11]:
             waste_data[col] = pd.to_numeric(waste_data[col].astype(str).str.replace(r'[^0-9.]', '', regex=True), errors='coerce')
         
-        # Montréal agglomeration municipalities
         agglo_mtl_mun = [
             "Ahuntsic-Cartierville", "Anjou", "Côte-des-Neiges–Notre-Dame-de-Grâce",
             "L'Île-Bizard–Sainte-Geneviève", "Lachine", "LaSalle", "Le Plateau-Mont-Royal",
@@ -99,10 +94,8 @@ def wasteestimation_tab_server(input, output, session):
             "Mont-Royal", "Pointe-Claire", "Sainte-Anne-de-Bellevue", "Senneville", "Westmount"
         ]
         
-        # Filter to only Montréal agglomeration territories
         waste_data = waste_data[waste_data['territoire'].isin(agglo_mtl_mun)]
         
-        # Get all unique materials
         materials_list = sorted(waste_data['matiere'].unique())
         
     except Exception as e:
@@ -112,35 +105,18 @@ def wasteestimation_tab_server(input, output, session):
     def waste_plots():
         year = input.selected_year()
         
-        # Create figure with clean styling
-        plt.style.use('default')  # Start with clean default style
+        plt.style.use('default')  
         fig, axs = plt.subplots(4, 2, figsize=(20, 28))
         fig.patch.set_facecolor('white')
         
-        # If no year selected, show message
         if not year:
             fig.text(0.5, 0.5, "Please select a year to view waste data", 
                     ha='center', va='center', fontsize=18, color='#666666')
             for ax in axs.flat:
                 ax.set_visible(False)
             return fig
-            
-        if waste_data is None or len(materials_list) == 0:
-            fig.text(0.5, 0.5, "Error loading data", 
-                    ha='center', va='center', fontsize=18, color='#666666')
-            for ax in axs.flat:
-                ax.set_visible(False)
-            return fig
         
-        # Filter data for the selected year
         year_data = waste_data[waste_data['annee'] == int(year)]
-        
-        if year_data.empty:
-            fig.text(0.5, 0.5, f"No data available for year {year}", 
-                    ha='center', va='center', fontsize=18, color='#666666')
-            for ax in axs.flat:
-                ax.set_visible(False)
-            return fig
         
         # Divide materials into exactly 8 groups
         n_materials = len(materials_list)
@@ -161,19 +137,16 @@ def wasteestimation_tab_server(input, output, session):
         while len(material_groups) < 8:
             material_groups.append([])
         
-        # Beautiful color palette
         colors = {
-            'Generated': '#FF6B35',  # Modern orange
-            'Collected': '#4A90E2'   # Modern blue
+            'Generated': '#FF6B35',  
+            'Collected': '#4A90E2'   
         }
         
-        # Process each group and create a subplot
         for i in range(8):
             row = i // 2
             col = i % 2
             ax = axs[row, col]
             
-            # Clean subplot styling
             ax.set_facecolor('#fafafa')
             ax.spines['top'].set_visible(False)
             ax.spines['right'].set_visible(False)
@@ -191,7 +164,6 @@ def wasteestimation_tab_server(input, output, session):
                 ax.set_title(f"Group {i+1}", fontsize=14, pad=20, color='#333333')
                 continue
             
-            # Filter data for these materials
             df_group = year_data[year_data['matiere'].isin(materials)]
             
             if df_group.empty:
@@ -203,7 +175,6 @@ def wasteestimation_tab_server(input, output, session):
                 ax.set_title(', '.join(materials), fontsize=14, pad=20, color='#333333')
                 continue
             
-            # Create plotting data
             plot_data = []
             for material in materials:
                 material_data = df_group[df_group['matiere'] == material]

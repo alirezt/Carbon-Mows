@@ -16,7 +16,7 @@ def refresh_scenarios(database_name):
 
 def initialization():
     """Method to initialize brightway database when first running the app"""
-    PROJECT_NAME = "testproject9"
+    PROJECT_NAME = "testproject7"
     DATABASE_NAME = "ecoinvent-3.9.1-cutoff"
 
     bw.projects.set_current(PROJECT_NAME)

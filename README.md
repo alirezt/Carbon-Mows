@@ -32,3 +32,21 @@ There are many Python libraries that must be installed. The user has the choice 
     ```bash
     pip install -r piprequirements.txt
     ```
+
+    If using Conda, you should install the different libraries found in the piprequirements.txt file individually. If the device is an Apple Silicon, it is **crucial** to install brightway_nosolver instead of brightway2. This is because the super-fast linear algebra software library pypardiso that brightway2 uses is not compatible with the M1 ARM architecture.
+
+## Usage
+
+Once everything is installed, the following command can be used to start the dashboard. When running the dashboard for the first time, it will take some time to initialize. It is important to run the command in the dashboard folder
+
+```bash
+shiny run app.py
+```
+
+## How to change some of the data files
+
+All the important data files are located in the data folder, located in pythonshinyproject/dashboard. For instance, if there is a new updated database to upload, you would upload it in the data/brightway folder. **It is very important that, when uploading, the name of the updated database remains identical to the previous iteration.**
+
+## How are the different tabs implemented
+
+Each tab has it's own python file associated with it, located in the pythonshinyproject/dashboard/tabs folder. That is where a tab can be modified. To add a new tab, a new file must be created in the tabs folder, and the tab must be added in the app.py file, which handles overlying architecture of the shiny application. The init.py file, on the other hand, handles all the important preprocessing procedures that are completed when running the project for the first time

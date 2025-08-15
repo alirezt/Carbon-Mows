@@ -16,7 +16,7 @@ def refresh_scenarios(database_name):
 
 def initialization():
     """Method to initialize brightway database when first running the app"""
-    PROJECT_NAME = "testproject7"
+    PROJECT_NAME = "testproject8"
     DATABASE_NAME = "ecoinvent-3.9.1-cutoff"
 
     bw.projects.set_current(PROJECT_NAME)
@@ -27,7 +27,7 @@ def initialization():
         bi.import_ecoinvent_release('3.9.1', 'cutoff','ebenezer.kwofie@mcgill.ca', '2EBz*!#0DCH4')
     
     if OWM_DATABASE not in bw.databases:
-        imp = bi.ExcelImporter(r"data/Canada OWM Facilities Database.xlsx")
+        imp = bi.ExcelImporter(r"data/brightway/Canada OWM Facilities Database.xlsx")
         imp.apply_strategies()
         imp.match_database(DATABASE_NAME, fields=('name', 'unit', 'location', 'reference product'))
         imp.match_database(fields=('name', 'unit', 'location'))

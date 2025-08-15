@@ -1,0 +1,12 @@
+brightway2
+shiny
+bw2io
+pandas
+matplotlib
+seaborn
+faicons
+openpyxl
+ipyleaflet
+shinywidgets
+ipywidgets
+geopandas

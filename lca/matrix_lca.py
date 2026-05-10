@@ -105,7 +105,7 @@ def lca_score_matrix(
     A_idx_rev = {v: k for k, v in A_idx.items()}
     col = next(
         (idx for (name, *_), idx in A_idx.items()
-         if activity_name.lower() in name.lower()),
+         if name.lower() == activity_name.lower()),
         None,
     )
     if col is None:

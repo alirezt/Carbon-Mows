@@ -1,52 +1,66 @@
-# Carbon Footprint of Municipal Organic Waste Systems (Carbon-MOWS) Dashboard
+# Carbon Footprint of Municipal Organic Waste Systems (Carbon-MOWS)
 
-The Carbon-MOWS Dashboard is a work-in-progress dashboard, developed in Python and Shiny, to demonstrate and analyze different type of data. 
+Prospective life cycle assessment (LCA) framework for organic waste management in Montreal, integrating IAM-based scenario projections (SSP1–5) with a 3×3 technology matrix and a Streamlit dashboard.
 
-The dashboard is divided into different tabs, depending on the type of data to analyze. Currently, there are two active tabs on the dashboard:
+## Overview
 
-1. LCA
-2. Food Waste
+The framework links five Shared Socioeconomic Pathways (SSPs) to ecoinvent background databases updated by [premise](https://github.com/polca/premise) using REMIND and MESSAGE IAM outputs. LCA results feed a technology matrix (Scale × Technology Level) that serves as initial conditions for a future system dynamics model.
 
-The following guide will explain how to install and run the application locally, how to change some of the data files, and how to modify/add tabs.
+**SSP → IAM mapping**
 
-## Installation
+| SSP  | Model   | Pathway        |
+|------|---------|----------------|
+| SSP1 | REMIND  | SSP1-PkBudg650 |
+| SSP2 | REMIND  | SSP2-NDC       |
+| SSP3 | REMIND  | SSP3-rollBack  |
+| SSP4 | MESSAGE | SSP4-LO        |
+| SSP5 | MESSAGE | SSP5-H         |
 
-There are many Python libraries that must be installed. The user has the choice of using either pip or conda package manager. However, Conda **must** be used if the app is to be installed on an Apple Silicon hardware. If you are on Windows, you must also ensure that the Microsoft C++ Build Tools are installed.
+## Repository Structure
 
-1. Clone the repository:
-
-    ```bash
-    git clone https://github.com/alirezt/Carbon-Mows
-    ```
-
-2. Navigate to the dashboard directory:
-
-    ```bash
-    cd pythonshinyproject/dashboard/
-    ```
-
-3. Install the required libraries:
-
-    If using PIP:
-
-    ```bash
-    pip install -r piprequirements.txt
-    ```
-
-    If using Conda, you should install the different libraries found in the piprequirements.txt file individually. If the device is an Apple Silicon, it is **crucial** to install brightway_nosolver instead of brightway2. This is because the super-fast linear algebra software library pypardiso that brightway2 uses is not compatible with the M1 ARM architecture.
-
-## Usage
-
-Once everything is installed, the following command can be used to start the dashboard. When running the dashboard for the first time, it will take some time to initialize. It is important to run the command in the dashboard folder
-
-```bash
-shiny run app.py
+```
+Carbon-Mows/
+├── lca/                  # Python LCA package (tech matrix, Brightway runner, scipy matrix solver)
+├── prospective/          # premise database generation script + exported sparse matrices
+├── dashboard/            # Streamlit dashboard (SSP scenarios, year slider, GWP results)
+├── estimation/           # Montreal waste estimation module (SSP population projections)
+└── archive/              # Legacy material (old Shiny app, original Brightway notebooks)
 ```
 
-## How to change some of the data files
+## Environments
 
-All the important data files are located in the data folder, located in pythonshinyproject/dashboard. For instance, if there is a new updated database to upload, you would upload it in the data/brightway folder. **It is very important that, when uploading, the name of the updated database remains identical to the previous iteration.**
+Two conda environments are required due to a bw2data version conflict:
 
-## How are the different tabs implemented
+| Environment | bw2data | Purpose |
+|-------------|---------|---------|
+| `premise`   | 4.x     | Generate prospective ecoinvent databases |
+| `bw`        | 3.x     | Run LCA and Streamlit dashboard |
 
-Each tab has it's own python file associated with it, located in the pythonshinyproject/dashboard/tabs folder. That is where a tab can be modified. To add a new tab, a new file must be created in the tabs folder, and the tab must be added in the app.py file, which handles overlying architecture of the shiny application. The init.py file, on the other hand, handles all the important preprocessing procedures that are completed when running the project for the first time
+## Step 1 — Generate Prospective Databases
+
+Run once (takes several hours for all SSPs × years):
+
+```bash
+conda activate premise
+python prospective/generate_prospective_dbs.py
+```
+
+Edit `SSPS_TO_RUN` and `YEARS_TO_RUN` at the top of the script to control scope. Default: all 5 SSPs × {2030, 2050, 2080, 2100}.
+
+Matrices are exported to `prospective/export/{model}/{pathway}/{year}/`.
+
+## Step 2 — Run the Dashboard
+
+```bash
+conda activate bw
+streamlit run dashboard/app.py
+```
+
+The dashboard shows GWP results (kg CO₂-eq / tonne OFMSW) for each SSP × year combination, using premise-generated prospective backgrounds where available and static ecoinvent 3.9.1 as fallback.
+
+## Brightway Projects
+
+| Project | Environment | Contents |
+|---------|-------------|----------|
+| `testproject7` | `bw` | OWM Facilities DB, ecoinvent 3.9.1-cutoff, IPCC 2021 methods |
+| `carbon-mows-premise` | `premise` | ecoinvent 3.9.1-cutoff for premise |
